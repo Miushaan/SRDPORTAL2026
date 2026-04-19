@@ -17,7 +17,7 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 
 let logs = [], yardLogs = [], transactionLogs = [], taskLogs = [], currentPage = 'DASH';
-let showCompleted = false, showUndocked = false, expandedWO = null;
+let showCompleted = false, showUndocked = false, expandedSR = null; // Replaced expandedWO with expandedSR
 
 const STATUS_OPTIONS = ["PENDING", "ITEM CREATION", "PR/MTR-RAISED", "PO-RAISED", "PAYMENT PENDING", "PART RECEIVED", "ALL RECEIVED", "OH-HOLD", "CANCELLED"];
 const YARD_STATUS = ["Docked", "Undocked"];
@@ -81,7 +81,7 @@ window.toggleSidebar = () => document.querySelector('.sidebar').classList.toggle
 
 window.switchPage = (page) => {
     currentPage = page;
-    showCompleted = false; showUndocked = false; expandedWO = null;
+    showCompleted = false; showUndocked = false; expandedSR = null;
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('nav-' + page.toLowerCase()).classList.add('active');
     
@@ -144,12 +144,16 @@ window.refreshTable = () => {
         </tr>`).join('');
         
     } else if (currentPage === 'TASKS') {
-        // ADDED: specific widths and white-space overrides to prevent wrapping
-        head.innerHTML = `<tr><th style="width:140px; white-space:nowrap;">WO #</th><th style="width:120px; white-space:nowrap;">SR #</th><th>Asset/Service</th><th style="width:110px; white-space:nowrap;">Tasks</th><th style="width:90px; white-space:nowrap;">Avg. %</th><th style="width:40px;"></th></tr>`;
+        // Updated Table Header for SR-level grouping
+        head.innerHTML = `<tr><th style="width:140px; white-space:nowrap;">SR #</th><th style="width:120px; white-space:nowrap;">SR Date</th><th>Asset/Service</th><th style="width:100px; white-space:nowrap;">WOs</th><th style="width:100px; white-space:nowrap;">Total Tasks</th><th style="width:90px; white-space:nowrap;">Avg. %</th><th style="width:40px;"></th></tr>`;
         
+        // Grouping Data: SR -> WO -> Tasks
         const grouped = taskLogs.reduce((acc, task) => {
-            if (!acc[task.wo]) acc[task.wo] = { wo: task.wo, sr: task.sr, asset: task.asset, items: [] };
-            acc[task.wo].items.push(task);
+            if (!acc[task.sr]) acc[task.sr] = { sr: task.sr, srDate: task.srDate, asset: task.asset, wos: {}, totalItems: [] };
+            if (!acc[task.sr].wos[task.wo]) acc[task.sr].wos[task.wo] = { wo: task.wo, woDate: task.woDate, items: [] };
+            
+            acc[task.sr].wos[task.wo].items.push(task);
+            acc[task.sr].totalItems.push(task); // Keep a flat array for SR-level math
             return acc;
         }, {});
 
@@ -157,46 +161,65 @@ window.refreshTable = () => {
 
         body.innerHTML = filteredKeys.map(key => {
             const group = grouped[key];
-            const avgProgress = Math.round(group.items.reduce((sum, t) => sum + parseInt(t.progress || 0), 0) / group.items.length) || 0;
+            const avgProgress = Math.round(group.totalItems.reduce((sum, t) => sum + parseInt(t.progress || 0), 0) / group.totalItems.length) || 0;
+            const woCount = Object.keys(group.wos).length;
             
-            let rows = `<tr style="cursor:pointer; background: var(--brand-light);" onclick="toggleWORows('${key}')">
-                <td style="font-weight:800; color:var(--brand); white-space:nowrap;">${group.wo}</td>
-                <td style="font-weight:700;">${group.sr}</td>
+            // Parent SR Row
+            let rows = `<tr style="cursor:pointer; background: var(--brand-light);" onclick="toggleSRRows('${key}')">
+                <td style="font-weight:800; color:var(--brand); white-space:nowrap;">${group.sr}</td>
+                <td style="font-weight:700; color:var(--text-muted); font-size:11px;">${group.srDate || '-'}</td>
                 <td style="font-weight:700;">${group.asset}</td>
-                <td><span class="age-badge">${group.items.length} Tasks</span></td>
+                <td><span class="age-badge" style="background:#f1f5f9; color:#475569; border-color:#cbd5e1;">${woCount} WOs</span></td>
+                <td><span class="age-badge">${group.totalItems.length} Tasks</span></td>
                 <td><b style="color:var(--brand)">${avgProgress}%</b></td>
-                <td><button onclick="event.stopPropagation(); deleteWO('${key}')" style="color:var(--danger); border:none; background:none; cursor:pointer; font-size:18px;">&times;</button></td>
+                <td><button onclick="event.stopPropagation(); deleteSR('${key}')" style="color:var(--danger); border:none; background:none; cursor:pointer; font-size:18px;" title="Delete Entire SR">&times;</button></td>
             </tr>`;
 
-            if (expandedWO === key) {
-                group.items.forEach(t => {
-                    let taskStatusClass = 's-PENDING';
-                    if(t.status === 'ONGOING') taskStatusClass = 's-ONGOING';
-                    if(t.status === 'COMPLETED') taskStatusClass = 's-COMPLETED';
-
-                    rows += `<tr style="background: var(--card-bg);">
-                        <td colspan="2" style="padding-left:40px; font-size:11px; color:var(--text-muted);">
-                            <strong style="color:var(--text-main);">Task Date:</strong> ${t.date}
+            // Expanded Data (WOs and their Tasks)
+            if (expandedSR === key) {
+                Object.keys(group.wos).forEach(woKey => {
+                    const woGroup = group.wos[woKey];
+                    
+                    // Nested WO Header Row
+                    rows += `<tr style="background: #f1f5f9; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+                        <td colspan="3" style="padding-left:40px; font-weight:800; color:var(--text-main); font-size:11px;">
+                            <span style="color:var(--brand)">WO #:</span> ${woGroup.wo}
+                            <span style="margin-left:15px; color:var(--text-muted); font-weight:600;">DATE: ${woGroup.woDate || '-'}</span>
                         </td>
-                        <td>
-                            <div style="font-weight:600; margin-bottom:6px;">${t.details}</div>
-                            <div class="remarks-editor" contenteditable="true" style="font-size:11px; border-style:dashed;" 
-                                 onblur="updateTask('${t.id}', 'comments', this.innerText.toUpperCase())" placeholder="Daily comments...">${t.comments || ''}</div>
-                        </td>
-                        <td>
-                             <select class="status-select ${taskStatusClass}" style="width:100px;" onchange="updateTask('${t.id}', 'status', this.value)">
-                                <option ${t.status=='PLANNED'?'selected':''}>PLANNED</option>
-                                <option ${t.status=='ONGOING'?'selected':''}>ONGOING</option>
-                                <option ${t.status=='COMPLETED'?'selected':''}>COMPLETED</option>
-                             </select>
-                        </td>
-                        <td>
-                            <div style="display:flex; align-items:center; gap:5px;">
-                                <input type="number" value="${t.progress}" class="remarks-editor" style="width:60px; padding:6px;" onblur="updateTask('${t.id}', 'progress', this.value)"> %
-                            </div>
-                        </td>
-                        <td><button onclick="deleteTask('${t.id}')" style="color:var(--text-muted); border:none; background:none; cursor:pointer; font-size:18px;">&times;</button></td>
+                        <td colspan="3"></td>
+                        <td><button onclick="deleteWO('${key}', '${woKey}')" style="color:var(--warning); border:none; background:none; cursor:pointer; font-size:16px;" title="Delete WO">&times;</button></td>
                     </tr>`;
+
+                    // Individual Task Rows under the WO
+                    woGroup.items.forEach(t => {
+                        let taskStatusClass = 's-PENDING';
+                        if(t.status === 'ONGOING') taskStatusClass = 's-ONGOING';
+                        if(t.status === 'COMPLETED') taskStatusClass = 's-COMPLETED';
+
+                        rows += `<tr style="background: var(--card-bg);">
+                            <td colspan="2" style="padding-left:60px; font-size:11px; color:var(--text-muted); border-left: 3px solid var(--brand-light);">
+                                <strong style="color:var(--text-main);">Task Date:</strong><br>${t.date || '-'}
+                            </td>
+                            <td colspan="2">
+                                <div style="font-weight:600; margin-bottom:6px;">${t.details}</div>
+                                <div class="remarks-editor" contenteditable="true" style="font-size:11px; border-style:dashed;" 
+                                     onblur="updateTask('${t.id}', 'comments', this.innerText.toUpperCase())" placeholder="Daily comments...">${t.comments || ''}</div>
+                            </td>
+                            <td>
+                                 <select class="status-select ${taskStatusClass}" style="width:100px;" onchange="updateTask('${t.id}', 'status', this.value)">
+                                    <option ${t.status=='PLANNED'?'selected':''}>PLANNED</option>
+                                    <option ${t.status=='ONGOING'?'selected':''}>ONGOING</option>
+                                    <option ${t.status=='COMPLETED'?'selected':''}>COMPLETED</option>
+                                 </select>
+                            </td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    <input type="number" value="${t.progress}" class="remarks-editor" style="width:60px; padding:6px;" onblur="updateTask('${t.id}', 'progress', this.value)"> %
+                                </div>
+                            </td>
+                            <td><button onclick="deleteTask('${t.id}')" style="color:var(--text-muted); border:none; background:none; cursor:pointer; font-size:18px;">&times;</button></td>
+                        </tr>`;
+                    });
                 });
             }
             return rows;
@@ -229,36 +252,82 @@ window.refreshTable = () => {
 };
 
 // --- TASK MANAGER SPECIFIC FUNCTIONS ---
-window.toggleWORows = (wo) => {
-    expandedWO = expandedWO === wo ? null : wo;
+window.toggleSRRows = (sr) => {
+    expandedSR = expandedSR === sr ? null : sr;
     refreshTable();
 };
 
-window.saveTaskEntry = () => {
-    const data = {
-        wo: document.getElementById('t-wo').value.toUpperCase(),
-        sr: document.getElementById('t-sr').value.toUpperCase(),
-        asset: document.getElementById('t-asset').value.toUpperCase(),
-        date: document.getElementById('t-date').value,
-        progress: document.getElementById('t-progress').value || 0,
-        details: document.getElementById('t-details').value.toUpperCase(),
-        status: 'PLANNED',
-        comments: ''
-    };
-    if(!data.wo || !data.asset) return alert("WO and Asset/Service Name required.");
-    push(ref(db, 'task_logs'), data);
+window.addTaskRow = () => {
+    const list = document.getElementById('t-task-list');
+    const row = document.createElement('div');
+    row.className = 'task-input-row';
+    row.style.cssText = 'display:grid; grid-template-columns: 120px 1fr 80px 30px; gap:8px; margin-bottom:10px; align-items:start;';
     
-    // Clear inputs for ease of adding multiple tasks
-    document.getElementById('t-details').value = '';
-    document.getElementById('t-progress').value = '';
+    row.innerHTML = `
+        <input type="date" class="remarks-editor t-row-date" title="Task Date">
+        <textarea class="remarks-editor t-row-details" placeholder="Specific Task Description" style="min-height:40px;"></textarea>
+        <input type="number" class="remarks-editor t-row-prog" placeholder="Prog %" min="0" max="100">
+        <button onclick="this.parentElement.remove()" style="color:var(--danger); background:none; border:none; cursor:pointer; font-size:18px; padding:6px; margin-top:2px;">&times;</button>
+    `;
+    list.appendChild(row);
+    // Auto-scroll to bottom of list
+    list.scrollTop = list.scrollHeight;
+};
+
+window.saveTaskEntry = () => {
+    const sr = document.getElementById('t-sr').value.toUpperCase();
+    const srDate = document.getElementById('t-sr-date').value;
+    const wo = document.getElementById('t-wo').value.toUpperCase();
+    const woDate = document.getElementById('t-wo-date').value;
+    const asset = document.getElementById('t-asset').value.toUpperCase();
+
+    if(!sr || !wo || !asset) return alert("SR, WO, and Asset/Service Name are heavily required.");
+
+    const taskRows = document.querySelectorAll('.task-input-row');
+    if (taskRows.length === 0) return alert("At least one task row is required.");
+
+    let savedCount = 0;
+    
+    taskRows.forEach(row => {
+        const date = row.querySelector('.t-row-date').value;
+        const details = row.querySelector('.t-row-details').value.toUpperCase();
+        const progress = row.querySelector('.t-row-prog').value || 0;
+
+        // Only save rows that have at least some details entered
+        if (details.trim() !== '') {
+            push(ref(db, 'task_logs'), {
+                sr: sr,
+                srDate: srDate,
+                wo: wo,
+                woDate: woDate,
+                asset: asset,
+                date: date,
+                details: details,
+                progress: progress,
+                status: 'PLANNED',
+                comments: ''
+            });
+            savedCount++;
+        }
+    });
+
+    if (savedCount === 0) return alert("Please enter the specific task descriptions.");
     closeModal();
 };
 
 window.updateTask = (id, field, val) => update(ref(db, `task_logs/${id}`), { [field]: val });
+
 window.deleteTask = (id) => confirm('Remove this specific task?') && remove(ref(db, `task_logs/${id}`));
-window.deleteWO = (wo) => {
-    if(confirm(`Delete all tasks under WO: ${wo}?`)) {
-        taskLogs.filter(t => t.wo === wo).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
+
+window.deleteWO = (sr, wo) => {
+    if(confirm(`Delete Work Order (WO: ${wo}) and all its tasks?`)) {
+        taskLogs.filter(t => t.sr === sr && t.wo === wo).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
+    }
+};
+
+window.deleteSR = (sr) => {
+    if(confirm(`WARNING: Delete Entire Service Request (SR: ${sr})? This will wipe all associated WOs and Tasks permanently.`)) {
+        taskLogs.filter(t => t.sr === sr).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
     }
 };
 
@@ -293,12 +362,26 @@ window.openModal = () => {
     document.getElementById('modal-title').innerText = {
         'YARD': 'REGISTER VESSEL',
         'DASH': 'NEW PRF ENTRY',
-        'TASKS': 'NEW TASK / WO'
+        'TASKS': 'NEW SERVICE REQUEST & WO'
     }[currentPage] || 'NEW ENTRY';
     
+    document.getElementById('inner-modal').className = (currentPage === 'TASKS') ? 'modal task-modal' : 'modal';
+
     document.getElementById('prf-form').style.display = currentPage === 'DASH' ? 'block' : 'none';
     document.getElementById('yard-form').style.display = currentPage === 'YARD' ? 'block' : 'none';
     document.getElementById('task-form').style.display = currentPage === 'TASKS' ? 'block' : 'none';
+    
+    // Clear the inputs and auto-add one row if opening the Tasks form
+    if (currentPage === 'TASKS') {
+        document.getElementById('t-sr').value = '';
+        document.getElementById('t-sr-date').value = '';
+        document.getElementById('t-wo').value = '';
+        document.getElementById('t-wo-date').value = '';
+        document.getElementById('t-asset').value = '';
+        document.getElementById('t-task-list').innerHTML = '';
+        addTaskRow(); 
+    }
+
     document.getElementById('entry-modal').style.display = 'flex';
 };
 
@@ -322,8 +405,8 @@ window.exportPDF = () => {
         head = [['TIMESTAMP', 'REF', 'ACTION', 'DETAILS', 'USER']];
         data = transactionLogs.filter(a => a.prf?.toUpperCase().includes(q)).map(a => [a.time, a.prf, a.action, a.details, a.user]);
     } else if (currentPage === 'TASKS') {
-         head = [['WO #', 'SR #', 'ASSET / SERVICE', 'DATE', 'TASK DETAILS', 'STATUS', 'PROGRESS']];
-         data = taskLogs.filter(t => t.wo?.toUpperCase().includes(q) || t.asset?.toUpperCase().includes(q)).map(t => [t.wo, t.sr, t.asset, t.date, t.details, t.status, t.progress + '%']);
+         head = [['SR #', 'WO #', 'ASSET / SERVICE', 'TASK DATE', 'TASK DETAILS', 'STATUS', 'PROGRESS']];
+         data = taskLogs.filter(t => t.sr?.toUpperCase().includes(q) || t.wo?.toUpperCase().includes(q) || t.asset?.toUpperCase().includes(q)).map(t => [t.sr, t.wo, t.asset, t.date, t.details, t.status, t.progress + '%']);
     } else {
         head = [['DATE', 'PRF #', 'ASSET NAME', 'WORKSHOP', 'STATUS', 'DUE DATE', 'REMARKS']];
         data = logs.filter(l => l.prf?.toUpperCase().includes(q)).map(l => [l.date, l.prf, l.asset, l.workshop, l.status, l.eta, l.remarks]);
