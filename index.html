@@ -1,204 +1,210 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SRD PORTAL 2026</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRD PORTAL | 2026</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --brand: #6366f1; --brand-light: #e0e7ff; --bg: #f8fafc; --card-bg: rgba(255, 255, 255, 0.8);
-            --text-main: #1e293b; --text-muted: #64748b; --border: #e2e8f0; --danger: #ef4444; --warning: #f59e0b;
+        :root { 
+            --bg: #f8fafc; --side: #0f172a; --brand: #6366f1; --brand-light: #e0e7ff; 
+            --success: #10b981; --border: #cbd5e1; --text-main: #1e293b; --text-muted: #64748b; 
+            --danger: #f43f5e; --warning: #f59e0b; --card-bg: #ffffff; --input-bg: #ffffff; --table-head: #f1f5f9;
         }
         [data-theme="dark"] {
-            --bg: #0f172a; --card-bg: rgba(30, 41, 59, 0.8); --text-main: #f1f5f9; --text-muted: #94a3b8; --border: #334155;
+            --bg: #020617; --side: #000000; --brand: #818cf8; --brand-light: rgba(99, 102, 241, 0.15);
+            --border: #1e293b; --text-main: #f1f5f9; --text-muted: #94a3b8; --card-bg: #0f172a;
+            --input-bg: #1e293b; --table-head: #1e293b;
         }
-        body { background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; overflow-x: hidden; }
-        
-        /* Glassmorphism */
-        .glass { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid var(--border); box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-        
-        /* Sidebar & Layout */
-        .sidebar { transition: all 0.3s ease; z-index: 50; }
-        .sidebar.hidden { transform: translateX(-100%); }
-        .nav-btn { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; transition: 0.2s; color: var(--text-muted); cursor: pointer; }
-        .nav-btn.active { background: var(--brand); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; transition: background 0.3s; }
 
-        /* Table UI */
-        .main-table-container { border-radius: 16px; overflow-x: auto; background: var(--card-bg); }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: rgba(99, 102, 241, 0.05); text-align: left; padding: 14px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
-        td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-        tr:hover { background: rgba(99, 102, 241, 0.03); }
-
-        /* Custom Inputs */
-        .remarks-editor { border: 1px solid transparent; background: transparent; width: 100%; padding: 4px; border-radius: 4px; transition: 0.2s; color: inherit; }
-        .remarks-editor:focus { background: white; border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px var(--brand-light); }
+        .sidebar { width: 260px; background: var(--side); color: white; display: flex; flex-direction: column; padding: 40px 20px; flex-shrink: 0; z-index: 100; border-right: 2px solid rgba(255,255,255,0.1); transition: margin-left 0.3s ease; }
+        .sidebar.hidden { margin-left: -260px; }
+        .logo-box { margin-bottom: 50px; padding-left: 15px; border-left: 4px solid var(--brand); }
+        .logo-box h1 { font-size: 14px; font-weight: 800; line-height: 1.2; text-transform: uppercase; letter-spacing: 1px; color: #fff; }
         
-        .status-select { padding: 4px 8px; border-radius: 20px; font-weight: 700; font-size: 11px; border: none; cursor: pointer; }
-        .s-PENDING { background: #fee2e2; color: #991b1b; }
+        .nav-btn { width: 100%; padding: 14px 18px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: #94a3b8; font-weight: 600; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; margin-bottom: 8px; text-transform: uppercase; }
+        .nav-btn.active { background: var(--brand); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); border-color: rgba(255,255,255,0.2); }
+
+        .wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+        .top-bar { padding: 20px 40px; background: var(--card-bg); border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 20px; }
+        
+        .search-wrap { flex: 1; max-width: 400px; }
+        .search-wrap input { width: 100%; padding: 12px 20px; border-radius: 14px; border: 2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-size: 13px; font-family: inherit; }
+
+        .table-container { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 2px solid var(--border); overflow: hidden; margin: 30px 40px; flex: 1; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { position: sticky; top: 0; background: var(--table-head); padding: 18px 20px; text-align: left; font-size: 10px; font-weight: 800; color: var(--text-main); text-transform: uppercase; border-bottom: 2px solid var(--border); z-index: 10; }
+        tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
+
+        .remarks-editor { width: 100%; padding: 8px; background: var(--bg); border-radius: 8px; font-size: 12px; border: 1px solid var(--border); font-family: inherit; color: var(--text-main); }
+        .status-select { padding: 8px; border-radius: 10px; font-size: 10px; font-weight: 800; width: 120px; border: none; cursor: pointer; }
         .s-Docked { background: #dcfce7; color: #166534; }
         .s-Undocked { background: #f1f5f9; color: #475569; }
-        
-        /* Mobile Optimization (iPhone 12 Pro) */
-        @media (max-width: 768px) {
-            .hide-mobile { display: none; }
-            .sidebar { position: fixed; height: 100vh; width: 280px; }
-            .main-content { padding: 10px; }
-        }
 
-        /* Modal */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 100; }
-        .modal { width: 95%; max-width: 500px; padding: 24px; border-radius: 24px; }
-        .modal input, .modal select, .modal textarea { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-main); }
-        
-        .age-badge { padding: 2px 8px; border-radius: 6px; font-weight: 800; border: 1px solid var(--border); background: var(--bg); }
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; }
+        .modal { background: var(--card-bg); padding: 40px; border-radius: 24px; width: 500px; border: 2px solid var(--brand); }
+        .btn-main { padding: 12px 20px; border-radius: 12px; font-weight: 800; border: none; cursor: pointer; text-transform: uppercase; font-size: 10px; transition: 0.2s; display: flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--brand); color: white; }
+        .btn-outline { background: transparent; border: 2px solid var(--border); color: var(--text-main); }
+        .age-badge { font-weight: 800; font-size: 11px; color: var(--brand); background: var(--brand-light); padding: 4px 10px; border-radius: 6px; }
     </style>
 </head>
-<body>
+<body data-theme="light">
 
-    <div id="auth-overlay" class="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-900 text-white p-6" style="display:none;">
-        <h1 class="text-3xl font-black mb-8 tracking-tighter">SRD PORTAL <span class="text-indigo-400">2026</span></h1>
-        <div class="w-full max-w-sm space-y-4">
-            <input type="email" id="login-email" placeholder="Email" class="w-full p-4 rounded-2xl bg-slate-800 border border-slate-700 outline-none focus:border-indigo-500">
-            <input type="password" id="login-pass" placeholder="Password" class="w-full p-4 rounded-2xl bg-slate-800 border border-slate-700 outline-none focus:border-indigo-500">
-            <button onclick="handleLogin()" class="w-full p-4 bg-indigo-600 rounded-2xl font-bold hover:bg-indigo-500 transition">SIGN IN</button>
+    <div id="auth-overlay" style="position: fixed; inset: 0; background: #0f172a; display: flex; align-items: center; justify-content: center; z-index: 5000;">
+        <div style="background: white; padding: 50px; border-radius: 30px; width: 400px; text-align: center;">
+            <h2 style="margin-bottom: 25px; font-weight: 800;">SYSTEM ACCESS</h2>
+            <input type="email" id="login-email" placeholder="Email" style="width:100%; padding:14px; margin-bottom:12px; border-radius:12px; border:2px solid #cbd5e1;">
+            <input type="password" id="login-pass" placeholder="Password" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid #cbd5e1;">
+            <button onclick="handleLogin()" class="btn-main btn-primary" style="width:100%; justify-content: center;">Authenticate</button>
         </div>
     </div>
 
-    <div class="flex min-h-screen">
-        
-        <aside class="sidebar glass w-72 p-6 flex flex-col gap-8">
-            <div class="flex items-center justify-between">
-                <h2 class="font-black text-xl tracking-tighter">SRD <span class="text-indigo-500">SYSTEM</span></h2>
-                <button onclick="toggleSidebar()" class="lg:hidden text-2xl">&times;</button>
+    <nav class="sidebar">
+        <div class="logo-box"><h1>SRD<br>PORTAL 2026</h1></div>
+        <div style="flex: 1;">
+            <button id="nav-dash" onclick="switchPage('DASH')" class="nav-btn active">PRF TRACKER</button>
+            <button id="nav-yard" onclick="switchPage('YARD')" class="nav-btn">Boat Yard Log</button>
+            <button id="nav-tasks" onclick="switchPage('TASKS')" class="nav-btn">Task Manager</button>
+        </div>
+        <button onclick="handleLogout()" class="nav-btn" style="color: var(--danger);">Sign Out</button>
+    </nav>
+
+    <div class="wrapper">
+        <header class="top-bar">
+            <div class="header-info"><h2 id="page-title">PRF TRACKER</h2></div>
+            <div class="search-wrap"><input type="text" id="main-search" placeholder="Search records..." onkeyup="refreshTable()"></div>
+            <div style="display:flex; gap:10px; margin-left:auto;">
+                <button onclick="toggleTheme()" class="btn-main btn-outline">🌙</button>
+                <button onclick="exportPDF()" class="btn-main btn-outline">Export PDF</button>
+                <button onclick="openModal()" class="btn-main btn-primary">+ Create Entry</button>
             </div>
+        </header>
 
-            <nav class="flex flex-col gap-2">
-                <div id="nav-dash" onclick="switchPage('DASH')" class="nav-btn active"><span>📊</span> Dashboard</div>
-                <div id="nav-yard" onclick="switchPage('YARD')" class="nav-btn"><span>⚓</span> Boat Yard Log</div>
-                <div id="nav-tasks" onclick="switchPage('TASKS')" class="nav-btn"><span>⚙️</span> Task Manager</div>
-                <div id="nav-trans" onclick="switchPage('TRANS')" class="nav-btn"><span>📜</span> History</div>
-            </nav>
-
-            <div class="mt-auto pt-6 border-t border-slate-200">
-                <div id="online-list" class="mb-4 text-[10px] uppercase font-bold flex flex-wrap gap-2"></div>
-                <button onclick="handleLogout()" class="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-bold">LOGOUT</button>
-            </div>
-        </aside>
-
-        <main class="flex-1 p-4 lg:p-8 overflow-y-auto main-content">
-            <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-                <div>
-                    <h1 id="page-title" class="text-3xl font-black tracking-tighter">PRF TRACKER</h1>
-                    <p class="text-sm text-slate-500">Managing MTCC Fleet Operations</p>
-                </div>
-                
-                <div class="flex items-center gap-2">
-                    <button onclick="toggleTheme()" id="theme-icon" class="p-3 glass rounded-xl text-lg">🌙</button>
-                    <div class="relative flex-1 lg:w-64">
-                        <input type="text" id="main-search" oninput="refreshTable()" placeholder="Search logs..." class="w-full p-3 pl-10 glass rounded-xl outline-none focus:ring-2 ring-indigo-500 text-sm">
-                        <span class="absolute left-3 top-3.5 opacity-40">🔍</span>
-                    </div>
-                </div>
-            </header>
-
-            <div class="flex flex-wrap gap-3 mb-6">
-                <button id="btn-create" onclick="openModal()" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition">＋ NEW ENTRY</button>
-                <button id="btn-toggle-comp" onclick="toggleCompleted()" class="px-4 py-3 glass rounded-xl text-xs font-bold flex items-center gap-2">📦 SHOW RECEIVED</button>
-                <button id="btn-toggle-undocked" onclick="toggleUndocked()" class="px-4 py-3 glass rounded-xl text-xs font-bold flex items-center gap-2" style="display:none;">🚢 SHOW UNDOCKED</button>
-                <button onclick="exportPDF()" class="px-4 py-3 glass rounded-xl text-xs font-bold flex items-center gap-2">📄 EXPORT PDF</button>
-            </div>
-
-            <div class="main-table-container glass p-2">
-                <table id="main-table">
-                    <thead id="table-head"></thead>
-                    <tbody id="table-body"></tbody>
-                </table>
-            </div>
+        <main class="table-container">
+            <table><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
         </main>
     </div>
 
-    <div id="entry-modal" class="modal-overlay">
-        <div id="inner-modal" class="modal glass">
-            <div class="flex justify-between items-center mb-6">
-                <h2 id="modal-title" class="text-xl font-black">NEW ENTRY</h2>
-                <button onclick="closeModal()" class="text-2xl opacity-50 hover:opacity-100">&times;</button>
-            </div>
-
-            <div id="prf-form">
-                <label class="text-[10px] font-black opacity-50 uppercase">Purchase Request #</label>
-                <input type="text" id="m-prf" placeholder="e.g. PRF-2026-001">
-                <label class="text-[10px] font-black opacity-50 uppercase">Asset / Vessel Name</label>
-                <input type="text" id="m-asset" placeholder="e.g. M.T. EAGLE">
-                <label class="text-[10px] font-black opacity-50 uppercase">Assigned Workshop</label>
-                <select id="m-workshop">
-                    <option>HULHUMALE SHIPYARD</option>
-                    <option>THILAFUSHI WORKSHOP</option>
-                    <option>MARINE ENGINES</option>
-                    <option>WELDING & FABRICATION</option>
-                </select>
-                <button onclick="savePRF(false)" class="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold mb-3">SAVE ENTRY</button>
-                <button onclick="savePRF(true)" class="w-full p-4 bg-slate-800 text-white rounded-2xl font-bold">SAVE & OPEN ERP FORM</button>
-            </div>
-
+    <div id="entry-modal" class="overlay" onclick="if(event.target===this) closeModal()">
+        <div class="modal">
+            <h2 id="modal-title" style="margin-bottom:25px; font-weight: 800;">NEW ENTRY</h2>
             <div id="yard-form" style="display:none;">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-black opacity-50 uppercase">Slot</label>
-                        <input type="text" id="y-slot" placeholder="S1">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black opacity-50 uppercase">Owner</label>
-                        <input type="text" id="y-owner" placeholder="Internal/Client">
-                    </div>
+                <input type="text" id="y-slot" placeholder="SLOT NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+                <input type="text" id="y-vessel" placeholder="ASSET NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+                <input type="text" id="y-owner" placeholder="OWNER NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                    <input type="text" id="y-sr" placeholder="SR NUMBER" class="remarks-editor" style="padding:14px;">
+                    <input type="text" id="y-wo" placeholder="WO NUMBER" class="remarks-editor" style="padding:14px;">
                 </div>
-                <label class="text-[10px] font-black opacity-50 uppercase">Vessel Name</label>
-                <input type="text" id="y-vessel" placeholder="M.V. CARGO">
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-black opacity-50 uppercase">SR #</label>
-                        <input type="text" id="y-sr" placeholder="SR-000">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black opacity-50 uppercase">WO #</label>
-                        <input type="text" id="y-wo" placeholder="WO-000">
-                    </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                    <input type="date" id="y-docked" class="remarks-editor">
+                    <input type="date" id="y-est-undock" class="remarks-editor">
                 </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-black opacity-50 uppercase">Docking Date</label>
-                        <input type="date" id="y-docked">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black opacity-50 uppercase">Est. Undock</label>
-                        <input type="date" id="y-est-undock">
-                    </div>
-                </div>
-                <button onclick="saveYardEntry()" class="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold mt-4">REGISTER VESSEL</button>
+                <button onclick="saveYardEntry()" class="btn-main btn-primary" style="width:100%; justify-content:center;">Register Vessel</button>
             </div>
-
-            <div id="task-form" style="display:none;">
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="text" id="t-sr" placeholder="SR #">
-                    <input type="date" id="t-sr-date">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="text" id="t-wo" placeholder="WO #">
-                    <input type="date" id="t-wo-date">
-                </div>
-                <input type="text" id="t-asset" placeholder="ASSET / SERVICE NAME">
-                <div id="t-task-list" class="max-h-48 overflow-y-auto mb-4 border-y border-slate-100 py-4"></div>
-                <button onclick="addTaskRow()" class="text-xs font-bold text-indigo-500 mb-4 inline-block">＋ ADD TASK ITEM</button>
-                <button onclick="saveTaskEntry()" class="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold">SAVE SERVICE REQUEST</button>
             </div>
-        </div>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+        // Firebase Config (Replace with your own)
+        const firebaseConfig = { databaseURL: "https://srd-portal-1234-default-rtdb.firebaseio.com" };
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        let yardLogs = [], currentPage = 'DASH';
+
+        // --- Auth ---
+        window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-pass').value);
+        window.handleLogout = () => signOut(auth);
+        onAuthStateChanged(auth, user => { document.getElementById('auth-overlay').style.display = user ? 'none' : 'flex'; });
+
+        // --- Data ---
+        onValue(ref(db, 'yard_logs'), snap => {
+            yardLogs = snap.val() ? Object.keys(snap.val()).map(k => ({id:k, ...snap.val()[k]})) : [];
+            refreshTable();
+        });
+
+        window.switchPage = (p) => {
+            currentPage = p;
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('nav-' + p.toLowerCase()).classList.add('active');
+            document.getElementById('page-title').innerText = p === 'YARD' ? 'BOAT YARD LOG' : 'PRF TRACKER';
+            refreshTable();
+        };
+
+        window.refreshTable = () => {
+            const q = document.getElementById('main-search').value.toUpperCase();
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+
+            if (currentPage === 'YARD') {
+                head.innerHTML = `<tr>
+                    <th style="width:80px;">Slot</th>
+                    <th>Asset Name</th>
+                    <th>Owner</th>
+                    <th style="width:100px;">SR #</th>
+                    <th style="width:100px;">WO #</th>
+                    <th style="width:110px;">Docked</th>
+                    <th style="width:120px;">Status</th>
+                    <th style="width:80px;">Age</th>
+                    <th style="width:40px;"></th>
+                </tr>`;
+                
+                const filtered = yardLogs.filter(l => (l.name?.toUpperCase().includes(q) || l.sr?.toUpperCase().includes(q)));
+                body.innerHTML = filtered.map(l => {
+                    const age = Math.floor((new Date() - new Date(l.docked)) / 86400000) || 0;
+                    return `<tr>
+                        <td><input class="remarks-editor" value="${l.slot || ''}" onblur="updateYard('${l.id}', 'slot', this.value)"></td>
+                        <td><input class="remarks-editor" style="font-weight:700" value="${l.name || ''}" onblur="updateYard('${l.id}', 'name', this.value)"></td>
+                        <td><input class="remarks-editor" value="${l.owner || ''}" onblur="updateYard('${l.id}', 'owner', this.value)"></td>
+                        <td><input class="remarks-editor" value="${l.sr || ''}" onblur="updateYard('${l.id}', 'sr', this.value)" placeholder="SR-"></td>
+                        <td><input class="remarks-editor" value="${l.wo || ''}" onblur="updateYard('${l.id}', 'wo', this.value)" placeholder="WO-"></td>
+                        <td><input type="date" class="remarks-editor" value="${l.docked}" onchange="updateYard('${l.id}', 'docked', this.value)"></td>
+                        <td>
+                            <select class="status-select s-${l.status}" onchange="updateYard('${l.id}', 'status', this.value)">
+                                <option value="Docked" ${l.status==='Docked'?'selected':''}>Docked</option>
+                                <option value="Undocked" ${l.status==='Undocked'?'selected':''}>Undocked</option>
+                            </select>
+                        </td>
+                        <td><span class="age-badge">${age}D</span></td>
+                        <td><button onclick="deleteYard('${l.id}')" style="color:red; border:none; background:none; cursor:pointer;">&times;</button></td>
+                    </tr>`;
+                }).join('');
+            }
+        };
+
+        window.updateYard = (id, f, v) => update(ref(db, `yard_logs/${id}`), { [f]: v });
+        
+        window.saveYardEntry = () => {
+            const data = {
+                slot: document.getElementById('y-slot').value,
+                name: document.getElementById('y-vessel').value,
+                owner: document.getElementById('y-owner').value,
+                sr: document.getElementById('y-sr').value,
+                wo: document.getElementById('y-wo').value,
+                docked: document.getElementById('y-docked').value,
+                estUndock: document.getElementById('y-est-undock').value,
+                status: 'Docked'
+            };
+            push(ref(db, 'yard_logs'), data);
+            closeModal();
+        };
+
+        window.openModal = () => {
+            document.getElementById('yard-form').style.display = currentPage === 'YARD' ? 'block' : 'none';
+            document.getElementById('entry-modal').style.display = 'flex';
+        };
+        window.closeModal = () => document.getElementById('entry-modal').style.display = 'none';
+    </script>
 </body>
 </html>
