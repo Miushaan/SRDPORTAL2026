@@ -1,243 +1,204 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SRD PORTAL | 2026</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SRD PORTAL 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <style>
-        /* CSS Variables for Theme Switching */
-        :root { 
-            --bg: #f8fafc; 
-            --side: #0f172a; 
-            --brand: #6366f1; 
-            --brand-light: #e0e7ff; 
-            --success: #10b981; 
-            --border: #cbd5e1; 
-            --text-main: #1e293b; 
-            --text-muted: #64748b; 
-            --danger: #f43f5e; 
-            --warning: #f59e0b; 
-            --card-bg: #ffffff;
-            --input-bg: #ffffff;
-            --table-head: #f1f5f9;
+        :root {
+            --brand: #6366f1; --brand-light: #e0e7ff; --bg: #f8fafc; --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #1e293b; --text-muted: #64748b; --border: #e2e8f0; --danger: #ef4444; --warning: #f59e0b;
         }
-
         [data-theme="dark"] {
-            --bg: #020617;
-            --side: #000000;
-            --brand: #818cf8;
-            --brand-light: rgba(99, 102, 241, 0.15);
-            --border: #1e293b;
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
-            --card-bg: #0f172a;
-            --input-bg: #1e293b;
-            --table-head: #1e293b;
+            --bg: #0f172a; --card-bg: rgba(30, 41, 59, 0.8); --text-main: #f1f5f9; --text-muted: #94a3b8; --border: #334155;
+        }
+        body { background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        
+        /* Glassmorphism */
+        .glass { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid var(--border); box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        
+        /* Sidebar & Layout */
+        .sidebar { transition: all 0.3s ease; z-index: 50; }
+        .sidebar.hidden { transform: translateX(-100%); }
+        .nav-btn { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; transition: 0.2s; color: var(--text-muted); cursor: pointer; }
+        .nav-btn.active { background: var(--brand); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+
+        /* Table UI */
+        .main-table-container { border-radius: 16px; overflow-x: auto; background: var(--card-bg); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: rgba(99, 102, 241, 0.05); text-align: left; padding: 14px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
+        td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: rgba(99, 102, 241, 0.03); }
+
+        /* Custom Inputs */
+        .remarks-editor { border: 1px solid transparent; background: transparent; width: 100%; padding: 4px; border-radius: 4px; transition: 0.2s; color: inherit; }
+        .remarks-editor:focus { background: white; border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px var(--brand-light); }
+        
+        .status-select { padding: 4px 8px; border-radius: 20px; font-weight: 700; font-size: 11px; border: none; cursor: pointer; }
+        .s-PENDING { background: #fee2e2; color: #991b1b; }
+        .s-Docked { background: #dcfce7; color: #166534; }
+        .s-Undocked { background: #f1f5f9; color: #475569; }
+        
+        /* Mobile Optimization (iPhone 12 Pro) */
+        @media (max-width: 768px) {
+            .hide-mobile { display: none; }
+            .sidebar { position: fixed; height: 100vh; width: 280px; }
+            .main-content { padding: 10px; }
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; transition: background 0.3s; }
-
-        .sidebar { 
-            width: 260px; 
-            background: var(--side); 
-            color: white; 
-            display: flex; 
-            flex-direction: column; 
-            padding: 40px 20px; 
-            flex-shrink: 0; 
-            z-index: 100; 
-            border-right: 2px solid rgba(255,255,255,0.1); 
-            transition: margin-left 0.3s ease;
-        }
-        .sidebar.hidden { margin-left: -260px; }
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal { width: 95%; max-width: 500px; padding: 24px; border-radius: 24px; }
+        .modal input, .modal select, .modal textarea { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text-main); }
         
-        .logo-box { margin-bottom: 50px; padding-left: 15px; border-left: 4px solid var(--brand); }
-        .logo-box h1 { font-size: 14px; font-weight: 800; line-height: 1.2; text-transform: uppercase; letter-spacing: 1px; color: #fff; }
-        
-        .nav-btn { width: 100%; padding: 14px 18px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: #94a3b8; font-weight: 600; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; margin-bottom: 8px; text-transform: uppercase; }
-        .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; border-color: rgba(255,255,255,0.1); }
-        .nav-btn.active { background: var(--brand); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); border-color: rgba(255,255,255,0.2); }
-
-        .presence-box { margin-bottom: 20px; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(4px); }
-        .u-row { font-size: 10px; color: #cbd5e1; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
-        .u-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); }
-
-        .wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-        .top-bar { padding: 20px 40px; background: var(--card-bg); border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 20px; transition: background 0.3s; }
-        
-        .hamburger { background: none; border: none; cursor: pointer; color: var(--text-main); display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: 8px; transition: 0.2s; margin-right: 5px; }
-        .hamburger:hover { background: var(--bg); }
-
-        .header-info { flex-shrink: 0; }
-        .header-info h2 { font-weight: 800; font-size: 18px; letter-spacing: -0.5px; }
-
-        .search-wrap { flex: 1; max-width: 400px; }
-        .search-wrap input { width: 100%; padding: 12px 20px; border-radius: 14px; border: 2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-size: 13px; font-family: inherit; transition: 0.2s; }
-        .search-wrap input:focus { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-light); }
-
-        .action-group { display: flex; gap: 10px; margin-left: auto; }
-
-        .main-content { flex: 1; padding: 30px 40px; overflow: auto; }
-        .table-container { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 2px solid var(--border); overflow: hidden; }
-
-        table { width: 100%; border-collapse: collapse; }
-        thead th { position: sticky; top: 0; background: var(--table-head); padding: 18px 20px; text-align: left; font-size: 10px; font-weight: 800; color: var(--text-main); text-transform: uppercase; border-bottom: 2px solid var(--border); border-right: 1px solid var(--border); z-index: 10; }
-        tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
-        tbody tr:hover { background: rgba(99, 102, 241, 0.02); }
-
-        .status-select { padding: 8px; border-radius: 10px; font-size: 10px; font-weight: 800; width: 140px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; text-align: center; }
-        
-        .s-PENDING, .s-Undocked { background: #f1f5f9; color: #475569; }
-        .s-ITEM-CREATION { background: #e0e7ff; color: #4338ca; }
-        .s-PR-MTR-RAISED, .s-ONGOING { background: #fef9c3; color: #854d0e; }
-        .s-PO-RAISED, .s-Docked, .s-COMPLETED { background: #dcfce7; color: #166534; }
-        .s-PAYMENT-PENDING { background: #ffedd5; color: #9a3412; }
-        .s-ALL-RECEIVED { background: var(--success); color: white; border-color: #059669; }
-        .s-CANCELLED { background: #1e293b; color: white; }
-
-        .remarks-editor { 
-            width: 100%; padding: 10px; background: var(--bg); border-radius: 8px; font-size: 12px; border: 1px solid var(--border); font-family: inherit; color: var(--text-main); transition: 0.2s; white-space: pre-wrap; word-break: break-word; line-height: 1.5; min-height: 36px;
-        }
-        .remarks-editor:focus { background: var(--card-bg); border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
-        
-        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; }
-        .modal { background: var(--card-bg); padding: 40px; border-radius: 24px; width: 500px; border: 2px solid var(--brand); max-height: 90vh; overflow-y: auto; }
-        .modal.task-modal { width: 650px; }
-        
-        .btn-main { padding: 12px 20px; border-radius: 12px; font-weight: 800; border: 2px solid transparent; cursor: pointer; text-transform: uppercase; font-size: 10px; transition: 0.2s; display: flex; align-items: center; gap: 8px; }
-        .btn-primary { background: var(--brand); color: white; }
-        .btn-outline { background: var(--card-bg); border-color: var(--border); color: var(--text-main); }
-        .btn-outline:hover { background: var(--bg); }
-        .btn-completed { color: var(--success); border-color: var(--success); }
-        .btn-completed.active-toggle { background: var(--success); color: white; }
-        
-        .age-badge { font-weight: 800; font-size: 11px; color: var(--brand); background: var(--brand-light); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--brand); white-space: nowrap; display: inline-block; }
-
-        .theme-toggle { font-size: 18px; cursor: pointer; padding: 10px; border-radius: 12px; background: var(--bg); border: 2px solid var(--border); color: var(--text-main); }
+        .age-badge { padding: 2px 8px; border-radius: 6px; font-weight: 800; border: 1px solid var(--border); background: var(--bg); }
     </style>
 </head>
-<body data-theme="light">
+<body>
 
-    <div id="auth-overlay" style="position: fixed; inset: 0; background: #0f172a; display: flex; align-items: center; justify-content: center; z-index: 5000;">
-        <div style="background: white; padding: 50px; border-radius: 30px; width: 400px; text-align: center; border: 3px solid var(--brand);">
-            <h2 style="font-weight: 800; margin-bottom: 25px; color:#0f172a;">SYSTEM ACCESS</h2>
-            <input type="email" id="login-email" placeholder="Email" style="width:100%; padding:14px; margin-bottom:12px; border-radius:12px; border:2px solid #cbd5e1;">
-            <input type="password" id="login-pass" placeholder="Password" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid #cbd5e1;">
-            <button onclick="handleLogin()" class="btn-main btn-primary" style="width:100%; justify-content: center;">Authenticate</button>
+    <div id="auth-overlay" class="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-900 text-white p-6" style="display:none;">
+        <h1 class="text-3xl font-black mb-8 tracking-tighter">SRD PORTAL <span class="text-indigo-400">2026</span></h1>
+        <div class="w-full max-w-sm space-y-4">
+            <input type="email" id="login-email" placeholder="Email" class="w-full p-4 rounded-2xl bg-slate-800 border border-slate-700 outline-none focus:border-indigo-500">
+            <input type="password" id="login-pass" placeholder="Password" class="w-full p-4 rounded-2xl bg-slate-800 border border-slate-700 outline-none focus:border-indigo-500">
+            <button onclick="handleLogin()" class="w-full p-4 bg-indigo-600 rounded-2xl font-bold hover:bg-indigo-500 transition">SIGN IN</button>
         </div>
     </div>
 
-    <nav class="sidebar">
-        <div class="logo-box"><h1>SRD<br>PORTAL 2026</h1></div>
-        <div style="flex: 1;">
-            <button id="nav-dash" onclick="switchPage('DASH')" class="nav-btn active">PRF TRACKER</button>
-            <button id="nav-yard" onclick="switchPage('YARD')" class="nav-btn">Boat Yard Log</button>
-            <button id="nav-trans" onclick="switchPage('TRANS')" class="nav-btn">Transactions</button>
-            <button id="nav-tasks" onclick="switchPage('TASKS')" class="nav-btn">Task Manager</button>
-        </div>
-        <div class="presence-box"><div id="online-list"></div></div>
-        <button onclick="handleLogout()" class="nav-btn" style="color: var(--danger); border: 1.5px solid rgba(244, 63, 94, 0.4);">Sign Out</button>
-    </nav>
-
-    <div class="wrapper">
-        <header class="top-bar">
-            <button class="hamburger" onclick="toggleSidebar()">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-            </button>
-            <div class="header-info"><h2 id="page-title">PRF TRACKER</h2></div>
-            <div class="search-wrap"><input type="text" id="main-search" placeholder="Search records..." onkeyup="refreshTable()"></div>
-            <div class="action-group">
-                <button onclick="toggleTheme()" class="theme-toggle" id="theme-icon">🌙</button>
-                <button id="btn-toggle-comp" onclick="toggleCompleted()" class="btn-main btn-outline btn-completed" style="display:flex;">Completed PRFs</button>
-                <button id="btn-toggle-undocked" onclick="toggleUndocked()" class="btn-main btn-outline btn-completed" style="display:none;">Undocked Assets</button>
-                <button onclick="exportPDF()" class="btn-main btn-outline">Export PDF</button>
-                <button id="btn-create" onclick="openModal()" class="btn-main btn-primary">+ Create Entry</button>
+    <div class="flex min-h-screen">
+        
+        <aside class="sidebar glass w-72 p-6 flex flex-col gap-8">
+            <div class="flex items-center justify-between">
+                <h2 class="font-black text-xl tracking-tighter">SRD <span class="text-indigo-500">SYSTEM</span></h2>
+                <button onclick="toggleSidebar()" class="lg:hidden text-2xl">&times;</button>
             </div>
-        </header>
 
-        <main class="main-content">
-            <div class="table-container">
-                <table><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
+            <nav class="flex flex-col gap-2">
+                <div id="nav-dash" onclick="switchPage('DASH')" class="nav-btn active"><span>📊</span> Dashboard</div>
+                <div id="nav-yard" onclick="switchPage('YARD')" class="nav-btn"><span>⚓</span> Boat Yard Log</div>
+                <div id="nav-tasks" onclick="switchPage('TASKS')" class="nav-btn"><span>⚙️</span> Task Manager</div>
+                <div id="nav-trans" onclick="switchPage('TRANS')" class="nav-btn"><span>📜</span> History</div>
+            </nav>
+
+            <div class="mt-auto pt-6 border-t border-slate-200">
+                <div id="online-list" class="mb-4 text-[10px] uppercase font-bold flex flex-wrap gap-2"></div>
+                <button onclick="handleLogout()" class="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-bold">LOGOUT</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-4 lg:p-8 overflow-y-auto main-content">
+            <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+                <div>
+                    <h1 id="page-title" class="text-3xl font-black tracking-tighter">PRF TRACKER</h1>
+                    <p class="text-sm text-slate-500">Managing MTCC Fleet Operations</p>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <button onclick="toggleTheme()" id="theme-icon" class="p-3 glass rounded-xl text-lg">🌙</button>
+                    <div class="relative flex-1 lg:w-64">
+                        <input type="text" id="main-search" oninput="refreshTable()" placeholder="Search logs..." class="w-full p-3 pl-10 glass rounded-xl outline-none focus:ring-2 ring-indigo-500 text-sm">
+                        <span class="absolute left-3 top-3.5 opacity-40">🔍</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex flex-wrap gap-3 mb-6">
+                <button id="btn-create" onclick="openModal()" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition">＋ NEW ENTRY</button>
+                <button id="btn-toggle-comp" onclick="toggleCompleted()" class="px-4 py-3 glass rounded-xl text-xs font-bold flex items-center gap-2">📦 SHOW RECEIVED</button>
+                <button id="btn-toggle-undocked" onclick="toggleUndocked()" class="px-4 py-3 glass rounded-xl text-xs font-bold flex items-center gap-2" style="display:none;">🚢 SHOW UNDOCKED</button>
+                <button onclick="exportPDF()" class="px-4 py-3 glass rounded-xl text-xs font-bold flex items-center gap-2">📄 EXPORT PDF</button>
+            </div>
+
+            <div class="main-table-container glass p-2">
+                <table id="main-table">
+                    <thead id="table-head"></thead>
+                    <tbody id="table-body"></tbody>
+                </table>
             </div>
         </main>
     </div>
 
-    <div id="entry-modal" class="overlay" onclick="if(event.target===this) closeModal()">
-        <div class="modal" id="inner-modal">
-            <h2 id="modal-title" style="margin-bottom:25px; font-weight: 800;">NEW ENTRY</h2>
-            
+    <div id="entry-modal" class="modal-overlay">
+        <div id="inner-modal" class="modal glass">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="modal-title" class="text-xl font-black">NEW ENTRY</h2>
+                <button onclick="closeModal()" class="text-2xl opacity-50 hover:opacity-100">&times;</button>
+            </div>
+
             <div id="prf-form">
-                <input type="text" id="m-prf" placeholder="PRF NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
-                <input type="text" id="m-asset" placeholder="ASSET NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
-                <select id="m-workshop" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-family: inherit; font-weight: 700;">
-                    <option value="">-- SELECT WORKSHOP --</option>
-                    <option value="DAU/LOS">DAU/LOS</option><option value="EEW">EEW</option><option value="MRW">MRW</option>
-                    <option value="MSH">MSH</option><option value="MWU">MWU</option><option value="NMU">NMU</option>
-                    <option value="OSU">OSU</option><option value="PLU">PLU</option><option value="SMU">SMU</option>
-                    <option value="STU">STU</option><option value="ADM">ADM</option><option value="INV">INV</option>
+                <label class="text-[10px] font-black opacity-50 uppercase">Purchase Request #</label>
+                <input type="text" id="m-prf" placeholder="e.g. PRF-2026-001">
+                <label class="text-[10px] font-black opacity-50 uppercase">Asset / Vessel Name</label>
+                <input type="text" id="m-asset" placeholder="e.g. M.T. EAGLE">
+                <label class="text-[10px] font-black opacity-50 uppercase">Assigned Workshop</label>
+                <select id="m-workshop">
+                    <option>HULHUMALE SHIPYARD</option>
+                    <option>THILAFUSHI WORKSHOP</option>
+                    <option>MARINE ENGINES</option>
+                    <option>WELDING & FABRICATION</option>
                 </select>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-                    <button onclick="savePRF(false)" class="btn-main btn-outline" style="justify-content:center;">Draft</button>
-                    <button onclick="savePRF(true)" class="btn-main btn-primary" style="justify-content:center;">Upload & Link</button>
-                </div>
+                <button onclick="savePRF(false)" class="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold mb-3">SAVE ENTRY</button>
+                <button onclick="savePRF(true)" class="w-full p-4 bg-slate-800 text-white rounded-2xl font-bold">SAVE & OPEN ERP FORM</button>
             </div>
 
             <div id="yard-form" style="display:none;">
-                <input type="text" id="y-slot" placeholder="SLOT NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
-                <input type="text" id="y-vessel" placeholder="Asset Name" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
-                <input type="text" id="y-owner" placeholder="OWNER NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black opacity-50 uppercase">Slot</label>
+                        <input type="text" id="y-slot" placeholder="S1">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black opacity-50 uppercase">Owner</label>
+                        <input type="text" id="y-owner" placeholder="Internal/Client">
+                    </div>
+                </div>
+                <label class="text-[10px] font-black opacity-50 uppercase">Vessel Name</label>
+                <input type="text" id="y-vessel" placeholder="M.V. CARGO">
                 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                    <input type="text" id="y-sr" placeholder="SR NUMBER" class="remarks-editor" style="padding:14px;">
-                    <input type="text" id="y-wo" placeholder="WO NUMBER" class="remarks-editor" style="padding:14px;">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black opacity-50 uppercase">SR #</label>
+                        <input type="text" id="y-sr" placeholder="SR-000">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black opacity-50 uppercase">WO #</label>
+                        <input type="text" id="y-wo" placeholder="WO-000">
+                    </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                    <div><label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">DOCKING DATE</label><input type="date" id="y-docked" class="remarks-editor"></div>
-                    <div><label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">EST. UNDOCK DATE</label><input type="date" id="y-est-undock" class="remarks-editor"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black opacity-50 uppercase">Docking Date</label>
+                        <input type="date" id="y-docked">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black opacity-50 uppercase">Est. Undock</label>
+                        <input type="date" id="y-est-undock">
+                    </div>
                 </div>
-                <button onclick="saveYardEntry()" class="btn-main btn-primary" style="width:100%; justify-content:center;">Register Vessel</button>
+                <button onclick="saveYardEntry()" class="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold mt-4">REGISTER VESSEL</button>
             </div>
 
             <div id="task-form" style="display:none;">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                    <div>
-                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">SR NUMBER</label>
-                        <input type="text" id="t-sr" placeholder="SR #" class="remarks-editor">
-                    </div>
-                    <div>
-                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">SR DATE</label>
-                        <input type="date" id="t-sr-date" class="remarks-editor">
-                    </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="t-sr" placeholder="SR #">
+                    <input type="date" id="t-sr-date">
                 </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                    <div>
-                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">WO NUMBER</label>
-                        <input type="text" id="t-wo" placeholder="WO #" class="remarks-editor">
-                    </div>
-                    <div>
-                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">WO DATE</label>
-                        <input type="date" id="t-wo-date" class="remarks-editor">
-                    </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="t-wo" placeholder="WO #">
+                    <input type="date" id="t-wo-date">
                 </div>
-                <input type="text" id="t-asset" placeholder="ASSET / SERVICE NAME" class="remarks-editor" style="margin-bottom:20px; font-weight:700;">
-                <div style="margin-bottom: 20px; padding:15px; border-radius: 12px; background: rgba(0,0,0,0.02); border: 1px solid var(--border);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                        <label style="font-size: 11px; font-weight: 800; color: var(--text-main); text-transform: uppercase;">Task Entries</label>
-                        <button onclick="addTaskRow()" class="btn-main btn-outline" style="padding: 6px 12px;">+ Add Row</button>
-                    </div>
-                    <div id="t-task-list" style="max-height: 220px; overflow-y: auto; overflow-x: hidden; padding-right: 5px;"></div>
-                </div>
-                <button onclick="saveTaskEntry()" class="btn-main btn-primary" style="width:100%; justify-content:center; padding:15px; font-size:12px;">Save Request & Tasks</button>
+                <input type="text" id="t-asset" placeholder="ASSET / SERVICE NAME">
+                <div id="t-task-list" class="max-h-48 overflow-y-auto mb-4 border-y border-slate-100 py-4"></div>
+                <button onclick="addTaskRow()" class="text-xs font-bold text-indigo-500 mb-4 inline-block">＋ ADD TASK ITEM</button>
+                <button onclick="saveTaskEntry()" class="w-full p-4 bg-indigo-600 text-white rounded-2xl font-bold">SAVE SERVICE REQUEST</button>
             </div>
         </div>
     </div>
 
     <script type="module" src="script.js"></script>
-
 </body>
 </html>
