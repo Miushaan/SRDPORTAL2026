@@ -17,7 +17,7 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 
 let logs = [], yardLogs = [], transactionLogs = [], taskLogs = [], currentPage = 'DASH';
-let showCompleted = false, showUndocked = false, expandedSR = null; // Replaced expandedWO with expandedSR
+let showCompleted = false, showUndocked = false, expandedSR = null;
 
 const STATUS_OPTIONS = ["PENDING", "ITEM CREATION", "PR/MTR-RAISED", "PO-RAISED", "PAYMENT PENDING", "PART RECEIVED", "ALL RECEIVED", "OH-HOLD", "CANCELLED"];
 const YARD_STATUS = ["Docked", "Undocked"];
@@ -107,27 +107,27 @@ window.refreshTable = () => {
     const body = document.getElementById('table-body');
 
     if (currentPage === 'YARD') {
-        head.innerHTML = `<tr><th style="width:80px;">Slot</th><th>Asset Name</th><th>Owner</th><th style="width:110px;">Docked</th><th style="width:110px;">Est. Undock</th><th style="width:150px;">Status</th><th style="width:80px;">Age</th><th>Actual Undock</th><th style="width:40px;"></th></tr>`;
+        head.innerHTML = `<tr><th style="width:70px;">Slot</th><th>Asset Name</th><th style="width:100px;">SR #</th><th style="width:100px;">WO #</th><th>Owner</th><th style="width:110px;">Docked</th><th style="width:150px;">Status</th><th style="width:60px;">Age</th><th style="width:40px;"></th></tr>`;
         const filtered = yardLogs.filter(l => {
-            const matches = l.name?.toUpperCase().includes(q) || l.owner?.toUpperCase().includes(q) || l.slot?.toUpperCase().includes(q);
+            const matches = l.name?.toUpperCase().includes(q) || l.owner?.toUpperCase().includes(q) || l.slot?.toUpperCase().includes(q) || l.sr?.toUpperCase().includes(q) || l.wo?.toUpperCase().includes(q);
             return showUndocked ? (matches && l.status === 'Undocked') : (matches && l.status !== 'Undocked');
         });
         body.innerHTML = filtered.map(l => {
             const start = new Date(l.docked), end = l.undocked ? new Date(l.undocked) : new Date();
             const age = Math.floor((end - start) / (1000 * 60 * 60 * 24)) || 0;
             return `<tr>
-                <td style="font-weight:800; color:var(--brand);"><input class="remarks-editor" value="${l.slot}" onblur="updateYard('${l.id}', 'slot', this.value)"></td>
-                <td><input class="remarks-editor" value="${l.name}" style="font-weight:700;" onblur="updateYard('${l.id}', 'name', this.value)"></td>
-                <td><input class="remarks-editor" value="${l.owner}" onblur="updateYard('${l.id}', 'owner', this.value)"></td>
+                <td style="font-weight:800; color:var(--brand);"><input class="remarks-editor" value="${l.slot}" onblur="updateYard('${l.id}', 'slot', this.value.toUpperCase())"></td>
+                <td><input class="remarks-editor" value="${l.name}" style="font-weight:700;" onblur="updateYard('${l.id}', 'name', this.value.toUpperCase())"></td>
+                <td><input class="remarks-editor" value="${l.sr || ''}" placeholder="SR#" onblur="updateYard('${l.id}', 'sr', this.value.toUpperCase())"></td>
+                <td><input class="remarks-editor" value="${l.wo || ''}" placeholder="WO#" onblur="updateYard('${l.id}', 'wo', this.value.toUpperCase())"></td>
+                <td><input class="remarks-editor" value="${l.owner}" onblur="updateYard('${l.id}', 'owner', this.value.toUpperCase())"></td>
                 <td><input type="date" value="${l.docked}" class="remarks-editor" onchange="updateYard('${l.id}', 'docked', this.value)"></td>
-                <td><input type="date" value="${l.estUndock || ''}" class="remarks-editor" onchange="updateYard('${l.id}', 'estUndock', this.value)"></td>
                 <td>
                     <select class="status-select ${l.status === 'Docked' ? 's-Docked' : 's-Undocked'}" onchange="updateYard('${l.id}', 'status', this.value)">
                         ${YARD_STATUS.map(o => `<option ${l.status==o?'selected':''}>${o}</option>`).join('')}
                     </select>
                 </td>
                 <td><span class="age-badge">${age}D</span></td>
-                <td><input type="date" value="${l.undocked || ''}" class="remarks-editor" onchange="updateYard('${l.id}', 'undocked', this.value)"></td>
                 <td><button onclick="deleteYard('${l.id}')" style="background:none; border:none; cursor:pointer; color:var(--danger); font-size:18px;">&times;</button></td>
             </tr>`;
         }).join('');
@@ -144,16 +144,13 @@ window.refreshTable = () => {
         </tr>`).join('');
         
     } else if (currentPage === 'TASKS') {
-        // Updated Table Header for SR-level grouping
-        head.innerHTML = `<tr><th style="width:140px; white-space:nowrap;">SR #</th><th style="width:120px; white-space:nowrap;">SR Date</th><th>Asset/Service</th><th style="width:100px; white-space:nowrap;">WOs</th><th style="width:100px; white-space:nowrap;">Total Tasks</th><th style="width:90px; white-space:nowrap;">Avg. %</th><th style="width:40px;"></th></tr>`;
+        head.innerHTML = `<tr><th style="width:140px;">SR #</th><th style="width:120px;">SR Date</th><th>Asset/Service</th><th style="width:100px;">WOs</th><th style="width:100px;">Total Tasks</th><th style="width:90px;">Avg. %</th><th style="width:40px;"></th></tr>`;
         
-        // Grouping Data: SR -> WO -> Tasks
         const grouped = taskLogs.reduce((acc, task) => {
             if (!acc[task.sr]) acc[task.sr] = { sr: task.sr, srDate: task.srDate, asset: task.asset, wos: {}, totalItems: [] };
             if (!acc[task.sr].wos[task.wo]) acc[task.sr].wos[task.wo] = { wo: task.wo, woDate: task.woDate, items: [] };
-            
             acc[task.sr].wos[task.wo].items.push(task);
-            acc[task.sr].totalItems.push(task); // Keep a flat array for SR-level math
+            acc[task.sr].totalItems.push(task);
             return acc;
         }, {});
 
@@ -164,46 +161,38 @@ window.refreshTable = () => {
             const avgProgress = Math.round(group.totalItems.reduce((sum, t) => sum + parseInt(t.progress || 0), 0) / group.totalItems.length) || 0;
             const woCount = Object.keys(group.wos).length;
             
-            // Parent SR Row
             let rows = `<tr style="cursor:pointer; background: var(--brand-light);" onclick="toggleSRRows('${key}')">
-                <td style="font-weight:800; color:var(--brand); white-space:nowrap;">${group.sr}</td>
+                <td style="font-weight:800; color:var(--brand);">${group.sr}</td>
                 <td style="font-weight:700; color:var(--text-muted); font-size:11px;">${group.srDate || '-'}</td>
                 <td style="font-weight:700;">${group.asset}</td>
                 <td><span class="age-badge" style="background:#f1f5f9; color:#475569; border-color:#cbd5e1;">${woCount} WOs</span></td>
                 <td><span class="age-badge">${group.totalItems.length} Tasks</span></td>
                 <td><b style="color:var(--brand)">${avgProgress}%</b></td>
-                <td><button onclick="event.stopPropagation(); deleteSR('${key}')" style="color:var(--danger); border:none; background:none; cursor:pointer; font-size:18px;" title="Delete Entire SR">&times;</button></td>
+                <td><button onclick="event.stopPropagation(); deleteSR('${key}')" style="color:var(--danger); border:none; background:none; cursor:pointer; font-size:18px;">&times;</button></td>
             </tr>`;
 
-            // Expanded Data (WOs and their Tasks)
             if (expandedSR === key) {
                 Object.keys(group.wos).forEach(woKey => {
                     const woGroup = group.wos[woKey];
-                    
-                    // Nested WO Header Row
                     rows += `<tr style="background: #f1f5f9; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
                         <td colspan="3" style="padding-left:40px; font-weight:800; color:var(--text-main); font-size:11px;">
                             <span style="color:var(--brand)">WO #:</span> ${woGroup.wo}
                             <span style="margin-left:15px; color:var(--text-muted); font-weight:600;">DATE: ${woGroup.woDate || '-'}</span>
                         </td>
                         <td colspan="3"></td>
-                        <td><button onclick="deleteWO('${key}', '${woKey}')" style="color:var(--warning); border:none; background:none; cursor:pointer; font-size:16px;" title="Delete WO">&times;</button></td>
+                        <td><button onclick="deleteWO('${key}', '${woKey}')" style="color:var(--warning); border:none; background:none; cursor:pointer; font-size:16px;">&times;</button></td>
                     </tr>`;
 
-                    // Individual Task Rows under the WO
                     woGroup.items.forEach(t => {
-                        let taskStatusClass = 's-PENDING';
-                        if(t.status === 'ONGOING') taskStatusClass = 's-ONGOING';
-                        if(t.status === 'COMPLETED') taskStatusClass = 's-COMPLETED';
-
+                        let taskStatusClass = t.status === 'COMPLETED' ? 's-COMPLETED' : (t.status === 'ONGOING' ? 's-ONGOING' : 's-PENDING');
                         rows += `<tr style="background: var(--card-bg);">
                             <td colspan="2" style="padding-left:60px; font-size:11px; color:var(--text-muted); border-left: 3px solid var(--brand-light);">
-                                <strong style="color:var(--text-main);">Task Date:</strong><br>${t.date || '-'}
+                                <strong>Task Date:</strong><br>${t.date || '-'}
                             </td>
                             <td colspan="2">
                                 <div style="font-weight:600; margin-bottom:6px;">${t.details}</div>
                                 <div class="remarks-editor" contenteditable="true" style="font-size:11px; border-style:dashed;" 
-                                     onblur="updateTask('${t.id}', 'comments', this.innerText.toUpperCase())" placeholder="Daily comments...">${t.comments || ''}</div>
+                                     onblur="updateTask('${t.id}', 'comments', this.innerText.toUpperCase())">${t.comments || ''}</div>
                             </td>
                             <td>
                                  <select class="status-select ${taskStatusClass}" style="width:100px;" onchange="updateTask('${t.id}', 'status', this.value)">
@@ -251,87 +240,43 @@ window.refreshTable = () => {
     }
 };
 
-// --- TASK MANAGER SPECIFIC FUNCTIONS ---
-window.toggleSRRows = (sr) => {
-    expandedSR = expandedSR === sr ? null : sr;
-    refreshTable();
-};
+window.toggleSRRows = (sr) => { expandedSR = expandedSR === sr ? null : sr; refreshTable(); };
 
 window.addTaskRow = () => {
     const list = document.getElementById('t-task-list');
     const row = document.createElement('div');
     row.className = 'task-input-row';
     row.style.cssText = 'display:grid; grid-template-columns: 120px 1fr 80px 30px; gap:8px; margin-bottom:10px; align-items:start;';
-    
     row.innerHTML = `
-        <input type="date" class="remarks-editor t-row-date" title="Task Date">
-        <textarea class="remarks-editor t-row-details" placeholder="Specific Task Description" style="min-height:40px;"></textarea>
-        <input type="number" class="remarks-editor t-row-prog" placeholder="Prog %" min="0" max="100">
-        <button onclick="this.parentElement.remove()" style="color:var(--danger); background:none; border:none; cursor:pointer; font-size:18px; padding:6px; margin-top:2px;">&times;</button>
+        <input type="date" class="remarks-editor t-row-date">
+        <textarea class="remarks-editor t-row-details" placeholder="Task Description" style="min-height:40px;"></textarea>
+        <input type="number" class="remarks-editor t-row-prog" placeholder="%" min="0" max="100">
+        <button onclick="this.parentElement.remove()" style="color:var(--danger); background:none; border:none; cursor:pointer; font-size:18px;">&times;</button>
     `;
     list.appendChild(row);
-    // Auto-scroll to bottom of list
     list.scrollTop = list.scrollHeight;
 };
 
 window.saveTaskEntry = () => {
-    const sr = document.getElementById('t-sr').value.toUpperCase();
-    const srDate = document.getElementById('t-sr-date').value;
-    const wo = document.getElementById('t-wo').value.toUpperCase();
-    const woDate = document.getElementById('t-wo-date').value;
+    const sr = document.getElementById('t-sr').value.toUpperCase(), srDate = document.getElementById('t-sr-date').value;
+    const wo = document.getElementById('t-wo').value.toUpperCase(), woDate = document.getElementById('t-wo-date').value;
     const asset = document.getElementById('t-asset').value.toUpperCase();
-
-    if(!sr || !wo || !asset) return alert("SR, WO, and Asset/Service Name are heavily required.");
-
     const taskRows = document.querySelectorAll('.task-input-row');
-    if (taskRows.length === 0) return alert("At least one task row is required.");
-
-    let savedCount = 0;
-    
+    if(!sr || !wo || !asset || taskRows.length === 0) return alert("SR, WO, Asset, and at least one task required.");
     taskRows.forEach(row => {
-        const date = row.querySelector('.t-row-date').value;
         const details = row.querySelector('.t-row-details').value.toUpperCase();
-        const progress = row.querySelector('.t-row-prog').value || 0;
-
-        // Only save rows that have at least some details entered
-        if (details.trim() !== '') {
-            push(ref(db, 'task_logs'), {
-                sr: sr,
-                srDate: srDate,
-                wo: wo,
-                woDate: woDate,
-                asset: asset,
-                date: date,
-                details: details,
-                progress: progress,
-                status: 'PLANNED',
-                comments: ''
-            });
-            savedCount++;
+        if (details.trim()) {
+            push(ref(db, 'task_logs'), { sr, srDate, wo, woDate, asset, date: row.querySelector('.t-row-date').value, details, progress: row.querySelector('.t-row-prog').value || 0, status: 'PLANNED', comments: '' });
         }
     });
-
-    if (savedCount === 0) return alert("Please enter the specific task descriptions.");
     closeModal();
 };
 
 window.updateTask = (id, field, val) => update(ref(db, `task_logs/${id}`), { [field]: val });
+window.deleteTask = (id) => confirm('Remove task?') && remove(ref(db, `task_logs/${id}`));
+window.deleteWO = (sr, wo) => confirm(`Delete WO: ${wo}?`) && taskLogs.filter(t => t.sr === sr && t.wo === wo).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
+window.deleteSR = (sr) => confirm(`Delete entire SR: ${sr}?`) && taskLogs.filter(t => t.sr === sr).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
 
-window.deleteTask = (id) => confirm('Remove this specific task?') && remove(ref(db, `task_logs/${id}`));
-
-window.deleteWO = (sr, wo) => {
-    if(confirm(`Delete Work Order (WO: ${wo}) and all its tasks?`)) {
-        taskLogs.filter(t => t.sr === sr && t.wo === wo).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
-    }
-};
-
-window.deleteSR = (sr) => {
-    if(confirm(`WARNING: Delete Entire Service Request (SR: ${sr})? This will wipe all associated WOs and Tasks permanently.`)) {
-        taskLogs.filter(t => t.sr === sr).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
-    }
-};
-
-// --- STANDARD SAVE & UPDATE LOGIC ---
 window.savePRF = (redirect) => {
     const p = document.getElementById('m-prf').value.toUpperCase(), a = document.getElementById('m-asset').value.toUpperCase(), w = document.getElementById('m-workshop').value;
     if(!p || !a || !w) return alert("Required");
@@ -341,9 +286,11 @@ window.savePRF = (redirect) => {
 };
 
 window.saveYardEntry = () => {
-    const s = document.getElementById('y-slot').value, v = document.getElementById('y-vessel').value, d = document.getElementById('y-docked').value;
-    if(!s || !v || !d) return alert("Required");
-    push(ref(db, 'yard_logs'), { slot: s, name: v, owner: document.getElementById('y-owner').value, docked: d, estUndock: document.getElementById('y-est-undock').value, status: 'Docked', undocked: '' });
+    const s = document.getElementById('y-slot').value.toUpperCase(), v = document.getElementById('y-vessel').value.toUpperCase();
+    const sr = document.getElementById('y-sr').value.toUpperCase(), wo = document.getElementById('y-wo').value.toUpperCase();
+    const d = document.getElementById('y-docked').value;
+    if(!s || !v || !d) return alert("Slot, Vessel and Docked date are required.");
+    push(ref(db, 'yard_logs'), { slot: s, name: v, sr, wo, owner: document.getElementById('y-owner').value.toUpperCase(), docked: d, estUndock: document.getElementById('y-est-undock').value, status: 'Docked', undocked: '' });
     closeModal();
 };
 
@@ -359,63 +306,42 @@ window.updateYard = (id, field, val) => {
 };
 
 window.openModal = () => {
-    document.getElementById('modal-title').innerText = {
-        'YARD': 'REGISTER VESSEL',
-        'DASH': 'NEW PRF ENTRY',
-        'TASKS': 'NEW SERVICE REQUEST & WO'
-    }[currentPage] || 'NEW ENTRY';
-    
+    document.getElementById('modal-title').innerText = {'YARD':'REGISTER VESSEL','DASH':'NEW PRF ENTRY','TASKS':'NEW SERVICE REQUEST & WO'}[currentPage] || 'NEW ENTRY';
     document.getElementById('inner-modal').className = (currentPage === 'TASKS') ? 'modal task-modal' : 'modal';
-
     document.getElementById('prf-form').style.display = currentPage === 'DASH' ? 'block' : 'none';
     document.getElementById('yard-form').style.display = currentPage === 'YARD' ? 'block' : 'none';
     document.getElementById('task-form').style.display = currentPage === 'TASKS' ? 'block' : 'none';
-    
-    // Clear the inputs and auto-add one row if opening the Tasks form
     if (currentPage === 'TASKS') {
-        document.getElementById('t-sr').value = '';
-        document.getElementById('t-sr-date').value = '';
-        document.getElementById('t-wo').value = '';
-        document.getElementById('t-wo-date').value = '';
-        document.getElementById('t-asset').value = '';
+        ['t-sr','t-sr-date','t-wo','t-wo-date','t-asset'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('t-task-list').innerHTML = '';
         addTaskRow(); 
     }
-
     document.getElementById('entry-modal').style.display = 'flex';
 };
 
 window.closeModal = () => document.getElementById('entry-modal').style.display = 'none';
-
 window.deleteRow = (id) => confirm('Delete permanently?') && remove(ref(db, `prf_logs/${id}`));
 window.deleteYard = (id) => confirm('Delete vessel?') && remove(ref(db, `yard_logs/${id}`));
 
-// --- PDF EXPORT ---
 window.exportPDF = () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('l', 'mm', 'a4');
     const q = document.getElementById('main-search').value.toUpperCase();
     let data, head;
-    const dateStr = new Date().toLocaleString('en-GB');
-
     if(currentPage === 'YARD') {
-        head = [['SLOT', 'Asset Name', 'OWNER', 'DOCKED', 'EST. UNDOCK', 'STATUS', 'AGE']];
-        data = yardLogs.filter(l => l.name?.toUpperCase().includes(q)).map(l => [l.slot, l.name, l.owner, l.docked, l.estUndock, l.status, '']);
+        head = [['SLOT', 'Asset Name', 'SR #', 'WO #', 'OWNER', 'DOCKED', 'STATUS']];
+        data = yardLogs.filter(l => l.name?.toUpperCase().includes(q)).map(l => [l.slot, l.name, l.sr||'', l.wo||'', l.owner, l.docked, l.status]);
     } else if (currentPage === 'TRANS') {
         head = [['TIMESTAMP', 'REF', 'ACTION', 'DETAILS', 'USER']];
         data = transactionLogs.filter(a => a.prf?.toUpperCase().includes(q)).map(a => [a.time, a.prf, a.action, a.details, a.user]);
     } else if (currentPage === 'TASKS') {
-         head = [['SR #', 'WO #', 'ASSET / SERVICE', 'TASK DATE', 'TASK DETAILS', 'STATUS', 'PROGRESS']];
-         data = taskLogs.filter(t => t.sr?.toUpperCase().includes(q) || t.wo?.toUpperCase().includes(q) || t.asset?.toUpperCase().includes(q)).map(t => [t.sr, t.wo, t.asset, t.date, t.details, t.status, t.progress + '%']);
+         head = [['SR #', 'WO #', 'ASSET', 'DATE', 'DETAILS', 'STATUS', 'PROGRESS']];
+         data = taskLogs.filter(t => t.sr?.toUpperCase().includes(q) || t.wo?.toUpperCase().includes(q)).map(t => [t.sr, t.wo, t.asset, t.date, t.details, t.status, t.progress + '%']);
     } else {
-        head = [['DATE', 'PRF #', 'ASSET NAME', 'WORKSHOP', 'STATUS', 'DUE DATE', 'REMARKS']];
+        head = [['DATE', 'PRF #', 'ASSET', 'WORKSHOP', 'STATUS', 'DUE', 'REMARKS']];
         data = logs.filter(l => l.prf?.toUpperCase().includes(q)).map(l => [l.date, l.prf, l.asset, l.workshop, l.status, l.eta, l.remarks]);
     }
-
-    doc.setFontSize(18);
     doc.text(`SRD PORTAL: ${currentPage} REPORT`, 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Exported On: ${dateStr}`, 14, 22);
-    doc.autoTable({ startY: 28, head: head, body: data, theme: 'grid', headStyles: { fillColor: [99, 102, 241] } });
-    doc.save(`SRD_REPORT_${currentPage}_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.autoTable({ startY: 25, head: head, body: data, theme: 'grid', headStyles: { fillColor: [99, 102, 241] } });
+    doc.save(`SRD_REPORT_${currentPage}.pdf`);
 };
