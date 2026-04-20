@@ -192,6 +192,18 @@
                 <input type="text" id="y-slot" placeholder="SLOT NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
                 <input type="text" id="y-vessel" placeholder="Asset Name" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
                 <input type="text" id="y-owner" placeholder="OWNER NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                    <div>
+                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">SR NUMBER</label>
+                        <input type="text" id="y-sr" placeholder="SR #" class="remarks-editor">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">WO NUMBER</label>
+                        <input type="text" id="y-wo" placeholder="WO #" class="remarks-editor">
+                    </div>
+                </div>
+
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
                     <div><label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">DOCKING DATE</label><input type="date" id="y-docked" class="remarks-editor"></div>
                     <div><label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">EST. UNDOCK DATE</label><input type="date" id="y-est-undock" class="remarks-editor"></div>
