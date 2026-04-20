@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getDatabase, ref, push, onValue, remove, update, onDisconnect, set } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
+// --- FIREBASE CONFIGURATION ---
 const firebaseConfig = { 
     apiKey: "AIzaSyD612DVL9xvsK1lWVyEB9TehpGJry6Rprw", 
     authDomain: "srd-portal-1234.firebaseapp.com", 
@@ -22,38 +23,44 @@ let showCompleted = false, showUndocked = false, expandedSR = null;
 const STATUS_OPTIONS = ["PENDING", "ITEM CREATION", "PR/MTR-RAISED", "PO-RAISED", "PAYMENT PENDING", "PART RECEIVED", "ALL RECEIVED", "OH-HOLD", "CANCELLED"];
 const YARD_STATUS = ["Docked", "Undocked"];
 
-// --- THEME LOGIC ---
-window.toggleTheme = () => {
-    const current = document.body.getAttribute('data-theme');
-    const next = current === 'light' ? 'dark' : 'light';
-    document.body.setAttribute('data-theme', next);
-    document.getElementById('theme-icon').innerText = next === 'light' ? '🌙' : '☀️';
-    localStorage.setItem('srd-theme', next);
+// --- AUTHENTICATION ---
+window.handleLogin = () => {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-pass').value;
+    signInWithEmailAndPassword(auth, email, pass).catch(() => alert("Access Denied: Invalid Credentials"));
 };
 
-const savedTheme = localStorage.getItem('srd-theme') || 'light';
-document.body.setAttribute('data-theme', savedTheme);
-document.getElementById('theme-icon').innerText = savedTheme === 'light' ? '🌙' : '☀️';
-
-// --- AUTH & DATA ---
-window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-pass').value).catch(() => alert("Access Denied"));
 window.handleLogout = () => signOut(auth);
 
 onAuthStateChanged(auth, user => {
     document.getElementById('auth-overlay').style.display = user ? 'none' : 'flex';
-    if(user) { initData(); setupPresence(user); }
+    if(user) { 
+        initData(); 
+        setupPresence(user); 
+    }
 });
 
 function setupPresence(user) {
     const myStatusRef = ref(db, `/status/${user.uid}`);
-    onValue(ref(db, '.info/connected'), (snap) => { if (snap.val()) { onDisconnect(myStatusRef).set({ state: 'offline', email: user.email }).then(() => set(myStatusRef, { state: 'online', email: user.email })); }});
+    onValue(ref(db, '.info/connected'), (snap) => {
+        if (snap.val()) {
+            onDisconnect(myStatusRef).set({ state: 'offline', email: user.email })
+                .then(() => set(myStatusRef, { state: 'online', email: user.email }));
+        }
+    });
     onValue(ref(db, '/status'), (snap) => {
-        const data = snap.val(); let html = '';
-        for (let id in data) if (data[id].state === 'online') html += `<div class="u-row"><span class="u-dot"></span>${data[id].email.split('@')[0].toUpperCase()}</div>`;
+        const data = snap.val(); 
+        let html = '';
+        for (let id in data) {
+            if (data[id].state === 'online') {
+                html += `<div class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>${data[id].email.split('@')[0]}</div>`;
+            }
+        }
         document.getElementById('online-list').innerHTML = html;
     });
 }
 
+// --- DATA INITIALIZATION ---
 function initData() {
     onValue(ref(db, 'prf_logs'), snap => {
         const val = snap.val();
@@ -77,72 +84,105 @@ function initData() {
     });
 }
 
-window.toggleSidebar = () => document.querySelector('.sidebar').classList.toggle('hidden');
-
+// --- NAVIGATION & UI TOGGLES ---
 window.switchPage = (page) => {
     currentPage = page;
-    showCompleted = false; showUndocked = false; expandedSR = null;
+    showCompleted = false; 
+    showUndocked = false; 
+    expandedSR = null;
+    
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('nav-' + page.toLowerCase()).classList.add('active');
+    const navId = 'nav-' + page.toLowerCase();
+    if(document.getElementById(navId)) document.getElementById(navId).classList.add('active');
     
     document.getElementById('page-title').innerText = { 
         'YARD': 'BOAT YARD LOG', 
         'DASH': 'PRF TRACKER', 
-        'TRANS': 'TRANSACTIONS',
-        'TASKS': 'TASK MANAGER'
+        'TRANS': 'TRANSACTIONS', 
+        'TASKS': 'TASK MANAGER' 
     }[page];
-    
+
     document.getElementById('btn-create').style.display = (page === 'TRANS') ? 'none' : 'block';
     document.getElementById('btn-toggle-comp').style.display = (page === 'DASH') ? 'flex' : 'none';
     document.getElementById('btn-toggle-undocked').style.display = (page === 'YARD') ? 'flex' : 'none';
+    
     refreshTable();
 };
 
-window.toggleCompleted = () => { showCompleted = !showCompleted; document.getElementById('btn-toggle-comp').classList.toggle('active-toggle', showCompleted); refreshTable(); };
-window.toggleUndocked = () => { showUndocked = !showUndocked; document.getElementById('btn-toggle-undocked').classList.toggle('active-toggle', showUndocked); refreshTable(); };
+window.toggleCompleted = () => { 
+    showCompleted = !showCompleted; 
+    document.getElementById('btn-toggle-comp').classList.toggle('active', showCompleted); 
+    refreshTable(); 
+};
 
+window.toggleUndocked = () => { 
+    showUndocked = !showUndocked; 
+    document.getElementById('btn-toggle-undocked').classList.toggle('active', showUndocked); 
+    refreshTable(); 
+};
+
+// --- CORE TABLE RENDERER ---
 window.refreshTable = () => {
     const q = document.getElementById('main-search').value.toUpperCase();
     const head = document.getElementById('table-head');
     const body = document.getElementById('table-body');
 
+    // YARD LOG PAGE
     if (currentPage === 'YARD') {
-        head.innerHTML = `<tr><th style="width:70px;">Slot</th><th>Asset Name</th><th style="width:100px;">SR #</th><th style="width:100px;">WO #</th><th>Owner</th><th style="width:110px;">Docked</th><th style="width:150px;">Status</th><th style="width:60px;">Age</th><th style="width:40px;"></th></tr>`;
+        head.innerHTML = `<tr>
+            <th style="width:70px;">Slot</th>
+            <th>Asset Name</th>
+            <th style="width:110px;">SR #</th>
+            <th style="width:110px;">WO #</th>
+            <th>Owner</th>
+            <th style="width:110px;">Docked</th>
+            <th style="width:150px;">Status</th>
+            <th style="width:60px;">Age</th>
+            <th style="width:40px;"></th>
+        </tr>`;
+
         const filtered = yardLogs.filter(l => {
-            const matches = l.name?.toUpperCase().includes(q) || l.owner?.toUpperCase().includes(q) || l.slot?.toUpperCase().includes(q) || l.sr?.toUpperCase().includes(q) || l.wo?.toUpperCase().includes(q);
+            const matches = l.name?.toUpperCase().includes(q) || 
+                            l.owner?.toUpperCase().includes(q) || 
+                            l.slot?.toUpperCase().includes(q) ||
+                            l.sr?.toUpperCase().includes(q) ||
+                            l.wo?.toUpperCase().includes(q);
             return showUndocked ? (matches && l.status === 'Undocked') : (matches && l.status !== 'Undocked');
         });
+
         body.innerHTML = filtered.map(l => {
             const start = new Date(l.docked), end = l.undocked ? new Date(l.undocked) : new Date();
             const age = Math.floor((end - start) / (1000 * 60 * 60 * 24)) || 0;
             return `<tr>
-                <td style="font-weight:800; color:var(--brand);"><input class="remarks-editor" value="${l.slot}" onblur="updateYard('${l.id}', 'slot', this.value.toUpperCase())"></td>
-                <td><input class="remarks-editor" value="${l.name}" style="font-weight:700;" onblur="updateYard('${l.id}', 'name', this.value.toUpperCase())"></td>
-                <td><input class="remarks-editor" value="${l.sr || ''}" placeholder="SR#" onblur="updateYard('${l.id}', 'sr', this.value.toUpperCase())"></td>
-                <td><input class="remarks-editor" value="${l.wo || ''}" placeholder="WO#" onblur="updateYard('${l.id}', 'wo', this.value.toUpperCase())"></td>
-                <td><input class="remarks-editor" value="${l.owner}" onblur="updateYard('${l.id}', 'owner', this.value.toUpperCase())"></td>
-                <td><input type="date" value="${l.docked}" class="remarks-editor" onchange="updateYard('${l.id}', 'docked', this.value)"></td>
+                <td style="font-weight:800; color:var(--brand);">
+                    <input class="remarks-editor" value="${l.slot}" onblur="updateYard('${l.id}', 'slot', this.value.toUpperCase())">
+                </td>
+                <td>
+                    <input class="remarks-editor" value="${l.name}" style="font-weight:700;" onblur="updateYard('${l.id}', 'name', this.value.toUpperCase())">
+                </td>
+                <td>
+                    <input class="remarks-editor" value="${l.sr || ''}" placeholder="SR#" onblur="updateYard('${l.id}', 'sr', this.value.toUpperCase())">
+                </td>
+                <td>
+                    <input class="remarks-editor" value="${l.wo || ''}" placeholder="WO#" onblur="updateYard('${l.id}', 'wo', this.value.toUpperCase())">
+                </td>
+                <td>
+                    <input class="remarks-editor" value="${l.owner}" onblur="updateYard('${l.id}', 'owner', this.value.toUpperCase())">
+                </td>
+                <td>
+                    <input type="date" value="${l.docked}" class="remarks-editor" onchange="updateYard('${l.id}', 'docked', this.value)">
+                </td>
                 <td>
                     <select class="status-select ${l.status === 'Docked' ? 's-Docked' : 's-Undocked'}" onchange="updateYard('${l.id}', 'status', this.value)">
                         ${YARD_STATUS.map(o => `<option ${l.status==o?'selected':''}>${o}</option>`).join('')}
                     </select>
                 </td>
                 <td><span class="age-badge">${age}D</span></td>
-                <td><button onclick="deleteYard('${l.id}')" style="background:none; border:none; cursor:pointer; color:var(--danger); font-size:18px;">&times;</button></td>
+                <td><button onclick="deleteYard('${l.id}')" style="color:var(--danger); font-size:18px;">&times;</button></td>
             </tr>`;
         }).join('');
         
-    } else if (currentPage === 'TRANS') {
-        head.innerHTML = `<tr><th style="width:180px;">Timestamp</th><th style="width:120px;">Reference</th><th>Action Type</th><th>Details</th><th>User</th></tr>`;
-        const filtered = transactionLogs.filter(a => a.prf?.toUpperCase().includes(q) || a.action?.toUpperCase().includes(q));
-        body.innerHTML = filtered.map(a => `<tr>
-            <td style="color:var(--text-muted); font-size:11px;">${a.time}</td>
-            <td style="font-weight:800; color:var(--brand);">${a.prf}</td>
-            <td style="font-weight:700;">${a.action}</td>
-            <td style="font-style:italic; color:var(--text-muted);">${a.details}</td>
-            <td style="font-weight:800;">${a.user}</td>
-        </tr>`).join('');
-        
+    // TASK MANAGER PAGE
     } else if (currentPage === 'TASKS') {
         head.innerHTML = `<tr><th style="width:140px;">SR #</th><th style="width:120px;">SR Date</th><th>Asset/Service</th><th style="width:100px;">WOs</th><th style="width:100px;">Total Tasks</th><th style="width:90px;">Avg. %</th><th style="width:40px;"></th></tr>`;
         
@@ -155,193 +195,221 @@ window.refreshTable = () => {
         }, {});
 
         const filteredKeys = Object.keys(grouped).filter(k => k.toUpperCase().includes(q) || grouped[k].asset?.toUpperCase().includes(q));
-
+        
         body.innerHTML = filteredKeys.map(key => {
             const group = grouped[key];
             const avgProgress = Math.round(group.totalItems.reduce((sum, t) => sum + parseInt(t.progress || 0), 0) / group.totalItems.length) || 0;
-            const woCount = Object.keys(group.wos).length;
             
-            let rows = `<tr style="cursor:pointer; background: var(--brand-light);" onclick="toggleSRRows('${key}')">
+            let rows = `<tr class="cursor-pointer bg-slate-50" onclick="toggleSRRows('${key}')">
                 <td style="font-weight:800; color:var(--brand);">${group.sr}</td>
-                <td style="font-weight:700; color:var(--text-muted); font-size:11px;">${group.srDate || '-'}</td>
+                <td style="color:var(--text-muted); font-size:11px;">${group.srDate || '-'}</td>
                 <td style="font-weight:700;">${group.asset}</td>
-                <td><span class="age-badge" style="background:#f1f5f9; color:#475569; border-color:#cbd5e1;">${woCount} WOs</span></td>
+                <td><span class="age-badge">${Object.keys(group.wos).length} WOs</span></td>
                 <td><span class="age-badge">${group.totalItems.length} Tasks</span></td>
                 <td><b style="color:var(--brand)">${avgProgress}%</b></td>
-                <td><button onclick="event.stopPropagation(); deleteSR('${key}')" style="color:var(--danger); border:none; background:none; cursor:pointer; font-size:18px;">&times;</button></td>
+                <td><button onclick="event.stopPropagation(); deleteSR('${key}')" style="color:var(--danger); font-size:18px;">&times;</button></td>
             </tr>`;
 
             if (expandedSR === key) {
                 Object.keys(group.wos).forEach(woKey => {
-                    const woGroup = group.wos[woKey];
-                    rows += `<tr style="background: #f1f5f9; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
-                        <td colspan="3" style="padding-left:40px; font-weight:800; color:var(--text-main); font-size:11px;">
-                            <span style="color:var(--brand)">WO #:</span> ${woGroup.wo}
-                            <span style="margin-left:15px; color:var(--text-muted); font-weight:600;">DATE: ${woGroup.woDate || '-'}</span>
-                        </td>
-                        <td colspan="3"></td>
-                        <td><button onclick="deleteWO('${key}', '${woKey}')" style="color:var(--warning); border:none; background:none; cursor:pointer; font-size:16px;">&times;</button></td>
-                    </tr>`;
-
-                    woGroup.items.forEach(t => {
-                        let taskStatusClass = t.status === 'COMPLETED' ? 's-COMPLETED' : (t.status === 'ONGOING' ? 's-ONGOING' : 's-PENDING');
-                        rows += `<tr style="background: var(--card-bg);">
-                            <td colspan="2" style="padding-left:60px; font-size:11px; color:var(--text-muted); border-left: 3px solid var(--brand-light);">
-                                <strong>Task Date:</strong><br>${t.date || '-'}
-                            </td>
-                            <td colspan="2">
-                                <div style="font-weight:600; margin-bottom:6px;">${t.details}</div>
-                                <div class="remarks-editor" contenteditable="true" style="font-size:11px; border-style:dashed;" 
-                                     onblur="updateTask('${t.id}', 'comments', this.innerText.toUpperCase())">${t.comments || ''}</div>
-                            </td>
-                            <td>
-                                 <select class="status-select ${taskStatusClass}" style="width:100px;" onchange="updateTask('${t.id}', 'status', this.value)">
-                                    <option ${t.status=='PLANNED'?'selected':''}>PLANNED</option>
-                                    <option ${t.status=='ONGOING'?'selected':''}>ONGOING</option>
-                                    <option ${t.status=='COMPLETED'?'selected':''}>COMPLETED</option>
-                                 </select>
-                            </td>
-                            <td>
-                                <div style="display:flex; align-items:center; gap:5px;">
-                                    <input type="number" value="${t.progress}" class="remarks-editor" style="width:60px; padding:6px;" onblur="updateTask('${t.id}', 'progress', this.value)"> %
-                                </div>
-                            </td>
-                            <td><button onclick="deleteTask('${t.id}')" style="color:var(--text-muted); border:none; background:none; cursor:pointer; font-size:18px;">&times;</button></td>
+                    const wo = group.wos[woKey];
+                    rows += `<tr class="bg-slate-100"><td colspan="6" class="pl-10 text-[10px] font-black text-slate-500 uppercase">WO: ${wo.wo} (${wo.woDate})</td><td><button onclick="deleteWO('${key}', '${woKey}')" class="text-amber-500">&times;</button></td></tr>`;
+                    wo.items.forEach(t => {
+                        rows += `<tr>
+                            <td colspan="2" class="pl-12 text-[10px]">${t.date}</td>
+                            <td colspan="2"><input class="remarks-editor" value="${t.details}" onblur="updateTask('${t.id}', 'details', this.value.toUpperCase())"></td>
+                            <td><input type="number" class="remarks-editor w-12" value="${t.progress}" onblur="updateTask('${t.id}', 'progress', this.value)">%</td>
+                            <td colspan="2"></td>
                         </tr>`;
                     });
                 });
             }
             return rows;
         }).join('');
-        
+
+    // TRANSACTIONS PAGE
+    } else if (currentPage === 'TRANS') {
+        head.innerHTML = `<tr><th>Timestamp</th><th>Reference</th><th>Action</th><th>Details</th><th>User</th></tr>`;
+        body.innerHTML = transactionLogs.filter(a => a.prf?.toUpperCase().includes(q) || a.action?.toUpperCase().includes(q)).map(a => `
+            <tr>
+                <td>${a.time}</td>
+                <td style="font-weight:800; color:var(--brand);">${a.prf}</td>
+                <td style="font-weight:700;">${a.action}</td>
+                <td class="italic text-slate-400">${a.details}</td>
+                <td>${a.user}</td>
+            </tr>
+        `).join('');
+
+    // DASHBOARD (PRF TRACKER) PAGE
     } else {
-        head.innerHTML = `<tr><th style="width:100px;">Date</th><th style="width:120px;">PRF #</th><th>Asset Name</th><th style="width:100px;">Workshop</th><th style="width:160px;">Status</th><th style="width:140px;">Due Date</th><th style="min-width:300px;">Remarks</th><th style="width:40px;"></th></tr>`;
-        const filtered = logs.filter(l => {
-            const matches = (l.prf?.toUpperCase().includes(q) || l.asset?.toUpperCase().includes(q));
+        head.innerHTML = `<tr><th style="width:100px;">Date</th><th style="width:120px;">PRF #</th><th>Asset</th><th style="width:100px;">Workshop</th><th style="width:160px;">Status</th><th style="width:140px;">Due Date</th><th>Remarks</th><th style="width:40px;"></th></tr>`;
+        body.innerHTML = logs.filter(l => {
+            const matches = l.prf?.toUpperCase().includes(q) || l.asset?.toUpperCase().includes(q);
             return showCompleted ? (matches && l.status === 'ALL RECEIVED') : (matches && l.status !== 'ALL RECEIVED');
-        });
-        body.innerHTML = filtered.map(l => {
-            const sClass = `s-${l.status.replace(/[/ ]/g, '-')}`;
-            return `<tr>
+        }).map(l => `
+            <tr class="${l.status === 'ALL RECEIVED' ? 'opacity-50' : ''}">
                 <td>${l.date}</td>
                 <td style="font-weight:800; color:var(--brand);">${l.prf}</td>
                 <td style="font-weight:700;">${l.asset}</td>
-                <td style="font-size:10px; font-weight:700; color:var(--text-muted);">${l.workshop}</td>
+                <td class="text-[10px] font-bold text-slate-400">${l.workshop}</td>
                 <td>
-                    <select class="status-select ${sClass}" onchange="updateField('${l.id}', 'status', this.value, '${l.prf}')">
+                    <select class="status-select s-${l.status.replace(/ /g,'-')}" onchange="updateField('${l.id}', 'status', this.value, '${l.prf}')">
                         ${STATUS_OPTIONS.map(o => `<option ${l.status==o?'selected':''}>${o}</option>`).join('')}
                     </select>
                 </td>
                 <td><input type="date" value="${l.eta || ''}" class="remarks-editor" onchange="updateField('${l.id}', 'eta', this.value, '${l.prf}')"></td>
-                <td><div class="remarks-editor" contenteditable="true" onblur="updateField('${l.id}', 'remarks', this.innerText.trim().toUpperCase(), '${l.prf}')">${l.remarks || ''}</div></td>
-                <td><button onclick="deleteRow('${l.id}')" style="background:none; border:none; cursor:pointer; color:#cbd5e1; font-size:18px;">&times;</button></td>
-            </tr>`;
-        }).join('');
+                <td><div class="remarks-editor" contenteditable="true" onblur="updateField('${l.id}', 'remarks', this.innerText.toUpperCase(), '${l.prf}')">${l.remarks || ''}</div></td>
+                <td><button onclick="deleteRow('${l.id}')" class="text-slate-300">&times;</button></td>
+            </tr>
+        `).join('');
     }
 };
 
-window.toggleSRRows = (sr) => { expandedSR = expandedSR === sr ? null : sr; refreshTable(); };
+// --- CRUD OPERATIONS ---
+window.savePRF = (erp) => {
+    const p = document.getElementById('m-prf').value.toUpperCase();
+    const a = document.getElementById('m-asset').value.toUpperCase();
+    const w = document.getElementById('m-workshop').value;
+    if(!p || !a || !w) return alert("Required Fields Missing");
+    
+    push(ref(db, 'prf_logs'), { 
+        date: new Date().toLocaleDateString('en-GB'), 
+        prf: p, 
+        asset: a, 
+        workshop: w, 
+        status: 'PENDING', 
+        eta: '', 
+        remarks: '' 
+    });
+    
+    closeModal();
+    if(erp) window.open("https://forms.office.com/pages/responsepage.aspx?id=rS-35FLkcEy4rMmBiUUcM-wq0ZU8I9BHssORFyfEW95UN0ZMM1gxR1YwUDZKMkNHMkhFMUdMRzlRSS4u", "_blank");
+};
+
+window.saveYardEntry = () => {
+    const s = document.getElementById('y-slot').value.toUpperCase();
+    const v = document.getElementById('y-vessel').value.toUpperCase();
+    const d = document.getElementById('y-docked').value;
+    if(!s || !v || !d) return alert("Slot, Vessel, and Docking Date required.");
+    
+    push(ref(db, 'yard_logs'), { 
+        slot: s, 
+        name: v, 
+        sr: document.getElementById('y-sr').value.toUpperCase(), 
+        wo: document.getElementById('y-wo').value.toUpperCase(), 
+        owner: document.getElementById('y-owner').value.toUpperCase(), 
+        docked: d, 
+        estUndock: document.getElementById('y-est-undock').value, 
+        status: 'Docked', 
+        undocked: '' 
+    });
+    closeModal();
+};
 
 window.addTaskRow = () => {
-    const list = document.getElementById('t-task-list');
     const row = document.createElement('div');
-    row.className = 'task-input-row';
-    row.style.cssText = 'display:grid; grid-template-columns: 120px 1fr 80px 30px; gap:8px; margin-bottom:10px; align-items:start;';
+    row.className = 'grid grid-cols-[100px_1fr_60px_30px] gap-2 mb-2 task-input-row';
     row.innerHTML = `
-        <input type="date" class="remarks-editor t-row-date">
-        <textarea class="remarks-editor t-row-details" placeholder="Task Description" style="min-height:40px;"></textarea>
-        <input type="number" class="remarks-editor t-row-prog" placeholder="%" min="0" max="100">
-        <button onclick="this.parentElement.remove()" style="color:var(--danger); background:none; border:none; cursor:pointer; font-size:18px;">&times;</button>
+        <input type="date" class="p-2 text-[10px] bg-slate-50 border border-slate-200 rounded-lg t-row-date">
+        <textarea class="p-2 text-[10px] bg-slate-50 border border-slate-200 rounded-lg t-row-details" placeholder="Task details..."></textarea>
+        <input type="number" class="p-2 text-[10px] bg-slate-50 border border-slate-200 rounded-lg t-row-prog" value="0">
+        <button onclick="this.parentElement.remove()" class="text-red-500 font-bold">&times;</button>
     `;
-    list.appendChild(row);
-    list.scrollTop = list.scrollHeight;
+    document.getElementById('t-task-list').appendChild(row);
 };
 
 window.saveTaskEntry = () => {
-    const sr = document.getElementById('t-sr').value.toUpperCase(), srDate = document.getElementById('t-sr-date').value;
-    const wo = document.getElementById('t-wo').value.toUpperCase(), woDate = document.getElementById('t-wo-date').value;
+    const sr = document.getElementById('t-sr').value.toUpperCase();
+    const wo = document.getElementById('t-wo').value.toUpperCase();
     const asset = document.getElementById('t-asset').value.toUpperCase();
-    const taskRows = document.querySelectorAll('.task-input-row');
-    if(!sr || !wo || !asset || taskRows.length === 0) return alert("SR, WO, Asset, and at least one task required.");
-    taskRows.forEach(row => {
-        const details = row.querySelector('.t-row-details').value.toUpperCase();
-        if (details.trim()) {
-            push(ref(db, 'task_logs'), { sr, srDate, wo, woDate, asset, date: row.querySelector('.t-row-date').value, details, progress: row.querySelector('.t-row-prog').value || 0, status: 'PLANNED', comments: '' });
+    const rows = document.querySelectorAll('.task-input-row');
+    
+    if(!sr || !wo || !asset || rows.length === 0) return alert("Missing Header or Tasks");
+    
+    rows.forEach(r => {
+        const details = r.querySelector('.t-row-details').value.toUpperCase();
+        if(details) {
+            push(ref(db, 'task_logs'), { 
+                sr, 
+                srDate: document.getElementById('t-sr-date').value, 
+                wo, 
+                woDate: document.getElementById('t-wo-date').value, 
+                asset, 
+                date: r.querySelector('.t-row-date').value, 
+                details, 
+                progress: r.querySelector('.t-row-prog').value, 
+                status: 'PLANNED', 
+                comments: '' 
+            });
         }
     });
     closeModal();
 };
 
-window.updateTask = (id, field, val) => update(ref(db, `task_logs/${id}`), { [field]: val });
-window.deleteTask = (id) => confirm('Remove task?') && remove(ref(db, `task_logs/${id}`));
-window.deleteWO = (sr, wo) => confirm(`Delete WO: ${wo}?`) && taskLogs.filter(t => t.sr === sr && t.wo === wo).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
-window.deleteSR = (sr) => confirm(`Delete entire SR: ${sr}?`) && taskLogs.filter(t => t.sr === sr).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
-
-window.savePRF = (redirect) => {
-    const p = document.getElementById('m-prf').value.toUpperCase(), a = document.getElementById('m-asset').value.toUpperCase(), w = document.getElementById('m-workshop').value;
-    if(!p || !a || !w) return alert("Required");
-    push(ref(db, 'prf_logs'), { date: new Date().toLocaleDateString('en-GB'), prf: p, asset: a, workshop: w, status: 'PENDING', eta: '', remarks: '' });
-    closeModal();
-    if(redirect) window.open("https://forms.office.com/pages/responsepage.aspx?id=rS-35FLkcEy4rMmBiUUcM-wq0ZU8I9BHssORFyfEW95UN0ZMM1gxR1YwUDZKMkNHMkhFMUdMRzlRSS4u", "_blank");
-};
-
-window.saveYardEntry = () => {
-    const s = document.getElementById('y-slot').value.toUpperCase(), v = document.getElementById('y-vessel').value.toUpperCase();
-    const sr = document.getElementById('y-sr').value.toUpperCase(), wo = document.getElementById('y-wo').value.toUpperCase();
-    const d = document.getElementById('y-docked').value;
-    if(!s || !v || !d) return alert("Slot, Vessel and Docked date are required.");
-    push(ref(db, 'yard_logs'), { slot: s, name: v, sr, wo, owner: document.getElementById('y-owner').value.toUpperCase(), docked: d, estUndock: document.getElementById('y-est-undock').value, status: 'Docked', undocked: '' });
-    closeModal();
-};
-
-window.updateField = (id, field, val, prf) => {
-    update(ref(db, `prf_logs/${id}`), { [field]: val });
-    push(ref(db, 'transactions'), { time: new Date().toLocaleString(), user: auth.currentUser.email.split('@')[0].toUpperCase(), action: `PRF Edit: ${field}`, prf: prf, details: val });
-};
-
-window.updateYard = (id, field, val) => {
-    const upd = { [field]: val };
-    if (field === 'undocked' && val !== "") upd.status = "Undocked";
+window.updateYard = (id, f, v) => {
+    const upd = { [f]: v };
+    if(f === 'undocked' && v !== "") upd.status = "Undocked";
     update(ref(db, `yard_logs/${id}`), upd);
 };
 
+window.updateField = (id, f, v, prf) => {
+    update(ref(db, `prf_logs/${id}`), { [f]: v });
+    push(ref(db, 'transactions'), { 
+        time: new Date().toLocaleString(), 
+        user: auth.currentUser.email.split('@')[0].toUpperCase(), 
+        action: `Edit: ${f}`, 
+        prf: prf, 
+        details: v 
+    });
+};
+
+window.updateTask = (id, f, v) => update(ref(db, `task_logs/${id}`), { [f]: v });
+window.toggleSRRows = (sr) => { expandedSR = expandedSR === sr ? null : sr; refreshTable(); };
+
+// --- MODAL & UTILS ---
 window.openModal = () => {
-    document.getElementById('modal-title').innerText = {'YARD':'REGISTER VESSEL','DASH':'NEW PRF ENTRY','TASKS':'NEW SERVICE REQUEST & WO'}[currentPage] || 'NEW ENTRY';
-    document.getElementById('inner-modal').className = (currentPage === 'TASKS') ? 'modal task-modal' : 'modal';
+    document.getElementById('entry-modal').style.display = 'flex';
+    document.getElementById('modal-title').innerText = { 
+        'DASH': 'NEW PRF', 
+        'YARD': 'DOCK VESSEL', 
+        'TASKS': 'NEW SERVICE REQUEST' 
+    }[currentPage];
+    
     document.getElementById('prf-form').style.display = currentPage === 'DASH' ? 'block' : 'none';
     document.getElementById('yard-form').style.display = currentPage === 'YARD' ? 'block' : 'none';
     document.getElementById('task-form').style.display = currentPage === 'TASKS' ? 'block' : 'none';
-    if (currentPage === 'TASKS') {
-        ['t-sr','t-sr-date','t-wo','t-wo-date','t-asset'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('t-task-list').innerHTML = '';
+    
+    if(currentPage === 'TASKS') { 
+        document.getElementById('t-task-list').innerHTML = ''; 
         addTaskRow(); 
     }
-    document.getElementById('entry-modal').style.display = 'flex';
 };
 
 window.closeModal = () => document.getElementById('entry-modal').style.display = 'none';
-window.deleteRow = (id) => confirm('Delete permanently?') && remove(ref(db, `prf_logs/${id}`));
-window.deleteYard = (id) => confirm('Delete vessel?') && remove(ref(db, `yard_logs/${id}`));
+
+window.deleteRow = (id) => confirm('Delete PRF?') && remove(ref(db, `prf_logs/${id}`));
+window.deleteYard = (id) => confirm('Undock/Delete Vessel?') && remove(ref(db, `yard_logs/${id}`));
+window.deleteSR = (sr) => confirm('Wipe Entire SR?') && taskLogs.filter(t => t.sr === sr).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
+
+window.toggleTheme = () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const target = current === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', target);
+    document.getElementById('theme-icon').innerText = target === 'light' ? '🌙' : '☀️';
+};
 
 window.exportPDF = () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('l', 'mm', 'a4');
-    const q = document.getElementById('main-search').value.toUpperCase();
-    let data, head;
-    if(currentPage === 'YARD') {
-        head = [['SLOT', 'Asset Name', 'SR #', 'WO #', 'OWNER', 'DOCKED', 'STATUS']];
-        data = yardLogs.filter(l => l.name?.toUpperCase().includes(q)).map(l => [l.slot, l.name, l.sr||'', l.wo||'', l.owner, l.docked, l.status]);
-    } else if (currentPage === 'TRANS') {
-        head = [['TIMESTAMP', 'REF', 'ACTION', 'DETAILS', 'USER']];
-        data = transactionLogs.filter(a => a.prf?.toUpperCase().includes(q)).map(a => [a.time, a.prf, a.action, a.details, a.user]);
-    } else if (currentPage === 'TASKS') {
-         head = [['SR #', 'WO #', 'ASSET', 'DATE', 'DETAILS', 'STATUS', 'PROGRESS']];
-         data = taskLogs.filter(t => t.sr?.toUpperCase().includes(q) || t.wo?.toUpperCase().includes(q)).map(t => [t.sr, t.wo, t.asset, t.date, t.details, t.status, t.progress + '%']);
-    } else {
-        head = [['DATE', 'PRF #', 'ASSET', 'WORKSHOP', 'STATUS', 'DUE', 'REMARKS']];
-        data = logs.filter(l => l.prf?.toUpperCase().includes(q)).map(l => [l.date, l.prf, l.asset, l.workshop, l.status, l.eta, l.remarks]);
-    }
-    doc.text(`SRD PORTAL: ${currentPage} REPORT`, 14, 15);
-    doc.autoTable({ startY: 25, head: head, body: data, theme: 'grid', headStyles: { fillColor: [99, 102, 241] } });
-    doc.save(`SRD_REPORT_${currentPage}.pdf`);
+    const head = [['REF', 'ASSET', 'DETAILS', 'STATUS']];
+    const data = currentPage === 'YARD' ? 
+                 yardLogs.map(l => [l.slot, l.name, l.owner, l.status]) : 
+                 logs.map(l => [l.prf, l.asset, l.remarks, l.status]);
+    
+    doc.text(`SRD REPORT - ${currentPage}`, 14, 15);
+    doc.autoTable({ head, body: data, startY: 20, theme: 'grid', headStyles: { fillColor: [99, 102, 241] } });
+    doc.save(`SRD_${currentPage}_${new Date().toISOString().split('T')[0]}.pdf`);
 };
+
+// Initial state
+switchPage('DASH');
