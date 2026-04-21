@@ -1,172 +1,437 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getDatabase, ref, push, onValue, remove, update, onDisconnect, set } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+<!DOCTYPE html>
 
-// Firebase Config
-const firebaseConfig = { 
-    apiKey: "AIzaSyD612DVL9xvsK1lWVyEB9TehpGJry6Rprw", 
-    authDomain: "srd-portal-1234.firebaseapp.com", 
-    projectId: "srd-portal-1234", 
-    databaseURL: "https://srd-portal-1234-default-rtdb.firebaseio.com",
-    storageBucket: "srd-portal-1234.firebasestorage.app", 
-    messagingSenderId: "286585731956", 
-    appId: "1:286585731956:web:47641bcf34033b014f4a21" 
-};
+<html lang="en">
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
+<head>
 
-let logs = [], yardLogs = [], transactionLogs = [], taskLogs = [], currentPage = 'DASH';
-let expandedSR = null;
+    <meta charset="UTF-8">
 
-const STATUS_OPTIONS = ["PENDING", "ITEM CREATION", "PR/MTR-RAISED", "PO-RAISED", "PAYMENT PENDING", "PART RECEIVED", "ALL RECEIVED"];
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-// --- UI ENGINE ---
-window.refreshTable = () => {
-    const q = document.getElementById('main-search').value.toUpperCase();
-    const head = document.getElementById('table-head');
-    const body = document.getElementById('table-body');
+    <title>SRD PORTAL | 2026</title>
 
-    if (currentPage === 'YARD') {
-        head.innerHTML = `<tr><th style="width:80px;">Slot</th><th>Vessel Details</th><th style="width:140px;">Owner</th><th style="width:130px;">Docked</th><th style="width:150px;">Status</th><th style="width:50px;"></th></tr>`;
-        body.innerHTML = yardLogs.filter(l => l.name?.toUpperCase().includes(q) || l.slot?.toUpperCase().includes(q)).map(l => `
-            <tr>
-                <td><input class="cell-editor" style="font-weight:800; color:var(--brand);" value="${l.slot || ''}" onblur="updateYard('${l.id}', 'slot', this.value.toUpperCase())"></td>
-                <td><textarea class="cell-editor" style="font-weight:700;" onblur="updateYard('${l.id}', 'name', this.value.toUpperCase())">${l.name || ''}</textarea></td>
-                <td><input class="cell-editor" value="${l.owner || ''}" onblur="updateYard('${l.id}', 'owner', this.value.toUpperCase())"></td>
-                <td><input type="date" class="cell-editor" value="${l.docked}" onchange="updateYard('${l.id}', 'docked', this.value)"></td>
-                <td>
-                    <select class="status-select ${l.status === 'Docked' ? 's-Docked' : ''}" onchange="updateYard('${l.id}', 'status', this.value)">
-                        <option ${l.status=='Docked'?'selected':''}>Docked</option>
-                        <option ${l.status=='Undocked'?'selected':''}>Undocked</option>
-                    </select>
-                </td>
-                <td><button onclick="deleteYard('${l.id}')" style="border:none; background:none; color:var(--danger); cursor:pointer; font-size:18px;">&times;</button></td>
-            </tr>`).join('');
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    } else if (currentPage === 'DASH') {
-        head.innerHTML = `<tr><th style="width:100px;">Date</th><th style="width:120px;">PRF #</th><th>Asset Details</th><th style="width:120px;">Workshop</th><th style="width:160px;">Status</th><th>Remarks</th><th style="width:50px;"></th></tr>`;
-        body.innerHTML = logs.filter(l => l.prf?.toUpperCase().includes(q) || l.asset?.toUpperCase().includes(q)).map(l => `
-            <tr>
-                <td style="color:var(--text-muted); font-size:11px;">${l.date}</td>
-                <td style="font-weight:800; color:var(--brand);">${l.prf}</td>
-                <td><textarea class="cell-editor" style="font-weight:700;" onblur="updateField('${l.id}', 'asset', this.value.toUpperCase(), '${l.prf}')">${l.asset || ''}</textarea></td>
-                <td><input class="cell-editor" value="${l.workshop}" onblur="updateField('${l.id}', 'workshop', this.value.toUpperCase(), '${l.prf}')"></td>
-                <td>
-                    <select class="status-select s-${l.status.replace(/[/ ]/g, '-')}" onchange="updateField('${l.id}', 'status', this.value, '${l.prf}')">
-                        ${STATUS_OPTIONS.map(o => `<option ${l.status==o?'selected':''}>${o}</option>`).join('')}
-                    </select>
-                </td>
-                <td><div class="cell-editor" contenteditable="true" style="min-height:20px; white-space:pre-wrap;" onblur="updateField('${l.id}', 'remarks', this.innerText.toUpperCase(), '${l.prf}')">${l.remarks || ''}</div></td>
-                <td><button onclick="deleteRow('${l.id}')" style="border:none; background:none; color:var(--danger); cursor:pointer; font-size:18px;">&times;</button></td>
-            </tr>`).join('');
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-    } else if (currentPage === 'TASKS') {
-        head.innerHTML = `<tr><th style="width:130px;">SR #</th><th style="width:110px;">Date</th><th>Asset / Service</th><th style="width:100px;">Tasks</th><th style="width:80px;">Avg %</th><th style="width:50px;"></th></tr>`;
-        const grouped = taskLogs.reduce((acc, t) => {
-            if (!acc[t.sr]) acc[t.sr] = { sr: t.sr, date: t.srDate, asset: t.asset, items: [] };
-            acc[t.sr].items.push(t);
-            return acc;
-        }, {});
-        body.innerHTML = Object.keys(grouped).filter(k => k.includes(q) || grouped[k].asset.includes(q)).map(k => {
-            const g = grouped[k];
-            const avg = Math.round(g.items.reduce((s, i) => s + parseInt(i.progress || 0), 0) / g.items.length) || 0;
-            let rows = `<tr onclick="toggleSR('${k}')" style="cursor:pointer; background: var(--brand-light);">
-                <td style="font-weight:800; color:var(--brand);">${g.sr}</td>
-                <td>${g.date}</td><td style="font-weight:700;">${g.asset}</td>
-                <td>${g.items.length} Tasks</td><td style="font-weight:800; color:var(--brand);">${avg}%</td>
-                <td><button onclick="deleteSR('${k}')" style="border:none; background:none; color:var(--danger);">&times;</button></td>
-            </tr>`;
-            if(expandedSR === k) {
-                g.items.forEach(t => {
-                    rows += `<tr style="background:var(--card-bg);">
-                        <td colspan="2" style="padding-left:40px; font-size:11px; color:var(--text-muted);">${t.date || '-'}</td>
-                        <td colspan="2"><input class="cell-editor" style="font-weight:600;" value="${t.details}" onblur="updateTask('${t.id}', 'details', this.value.toUpperCase())"></td>
-                        <td><input type="number" class="cell-editor" style="width:60px;" value="${t.progress}" onblur="updateTask('${t.id}', 'progress', this.value)"></td>
-                        <td><button onclick="deleteTask('${t.id}')" style="border:none; background:none; color:var(--text-muted);">&times;</button></td>
-                    </tr>`;
-                });
-            }
-            return rows;
-        }).join('');
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    } else if (currentPage === 'TRANS') {
-        head.innerHTML = `<tr><th style="width:180px;">Time</th><th style="width:120px;">Ref</th><th>Action</th><th>Details</th><th>User</th></tr>`;
-        body.innerHTML = transactionLogs.filter(t => t.prf?.includes(q)).map(t => `
-            <tr><td style="font-size:11px; color:var(--text-muted);">${t.time}</td><td style="font-weight:800; color:var(--brand);">${t.prf}</td><td style="font-weight:700;">${t.action}</td><td style="font-style:italic;">${t.details}</td><td>${t.user}</td></tr>
-        `).join('');
-    }
-};
+    <style>
 
-// --- DATA HANDLERS ---
-window.savePRF = () => {
-    const p = document.getElementById('m-prf').value.toUpperCase(), a = document.getElementById('m-asset').value.toUpperCase(), w = document.getElementById('m-workshop').value;
-    if(!p || !a) return alert("Required Fields Missing");
-    push(ref(db, 'prf_logs'), { date: new Date().toLocaleDateString('en-GB'), prf: p, asset: a, workshop: w, status: 'PENDING', remarks: '' });
-    closeModal();
-};
+        :root { 
 
-window.saveYardEntry = () => {
-    const slot = document.getElementById('y-slot').value.toUpperCase(), name = document.getElementById('y-vessel').value.toUpperCase(), owner = document.getElementById('y-owner').value.toUpperCase(), docked = document.getElementById('y-docked').value;
-    if(!name || !docked) return alert("Missing Vessel/Date");
-    push(ref(db, 'yard_logs'), { slot, name, owner, docked, status: 'Docked' });
-    closeModal();
-};
+            --bg: #f8fafc; 
 
-window.saveTaskEntry = () => {
-    const sr = document.getElementById('t-sr').value.toUpperCase(), srDate = document.getElementById('t-sr-date').value, asset = document.getElementById('t-asset').value.toUpperCase();
-    document.querySelectorAll('.task-input-row').forEach(row => {
-        const d = row.querySelector('.t-row-date').value, dt = row.querySelector('.t-row-details').value.toUpperCase(), p = row.querySelector('.t-row-prog').value || 0;
-        if(dt) push(ref(db, 'task_logs'), { sr, srDate, asset, date: d, details: dt, progress: p });
-    });
-    closeModal();
-};
+            --side: #0f172a; 
 
-window.updateField = (id, field, val, prf) => {
-    update(ref(db, `prf_logs/${id}`), { [field]: val });
-    push(ref(db, 'transactions'), { time: new Date().toLocaleString(), user: auth.currentUser.email.split('@')[0].toUpperCase(), action: `Edit ${field}`, prf: prf, details: val.substring(0, 40) });
-};
+            --brand: #6366f1; 
 
-window.updateYard = (id, f, v) => update(ref(db, `yard_logs/${id}`), { [f]: v });
-window.updateTask = (id, f, v) => update(ref(db, `task_logs/${id}`), { [f]: v });
-window.deleteRow = (id) => confirm('Delete PRF?') && remove(ref(db, `prf_logs/${id}`));
-window.deleteYard = (id) => confirm('Delete Vessel?') && remove(ref(db, `yard_logs/${id}`));
-window.deleteTask = (id) => remove(ref(db, `task_logs/${id}`));
-window.deleteSR = (sr) => confirm('Delete entire SR?') && taskLogs.filter(t => t.sr === sr).forEach(t => remove(ref(db, `task_logs/${t.id}`)));
+            --brand-light: #e0e7ff; 
 
-// --- UI HELPERS ---
-window.switchPage = (p) => { currentPage = p; expandedSR = null; refreshTable(); document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.id.includes(p.toLowerCase()))); document.getElementById('page-title').innerText = p.replace('DASH', 'PRF TRACKER').replace('TRANS', 'TRANSACTIONS').replace('YARD', 'BOAT YARD LOG').replace('TASKS', 'TASK MANAGER'); };
-window.toggleSR = (sr) => { expandedSR = expandedSR === sr ? null : sr; refreshTable(); };
-window.openModal = () => { 
-    document.getElementById('entry-modal').style.display = 'flex'; 
-    document.getElementById('prf-form').style.display = currentPage === 'DASH' ? 'block' : 'none';
-    document.getElementById('yard-form').style.display = currentPage === 'YARD' ? 'block' : 'none';
-    document.getElementById('task-form').style.display = currentPage === 'TASKS' ? 'block' : 'none';
-    if(currentPage === 'TASKS') { document.getElementById('t-task-list').innerHTML = ''; addTaskRow(); }
-};
-window.closeModal = () => document.getElementById('entry-modal').style.display = 'none';
-window.addTaskRow = () => {
-    const div = document.createElement('div'); div.className = 'task-input-row'; div.style.cssText = "display:grid; grid-template-columns: 120px 1fr 60px 30px; gap:8px; margin-bottom:8px;";
-    div.innerHTML = `<input type="date" class="cell-editor t-row-date" style="border:1px solid var(--border);"><textarea class="cell-editor t-row-details" style="border:1px solid var(--border);"></textarea><input type="number" class="cell-editor t-row-prog" placeholder="%" style="border:1px solid var(--border);"><button onclick="this.parentElement.remove()" style="border:none; background:none; color:var(--danger);">&times;</button>`;
-    document.getElementById('t-task-list').appendChild(div);
-};
+            --success: #10b981; 
 
-// --- CORE ---
-window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-pass').value).catch(e => alert("Auth Failed"));
-window.handleLogout = () => signOut(auth);
-window.toggleTheme = () => { const n = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; document.body.setAttribute('data-theme', n); localStorage.setItem('srd-theme', n); };
+            --border: #cbd5e1; 
 
-onAuthStateChanged(auth, user => {
-    document.getElementById('auth-overlay').style.display = user ? 'none' : 'flex';
-    if(user) {
-        onValue(ref(db, 'prf_logs'), s => { logs = s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []; refreshTable(); });
-        onValue(ref(db, 'yard_logs'), s => { yardLogs = s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []; refreshTable(); });
-        onValue(ref(db, 'task_logs'), s => { taskLogs = s.val() ? Object.keys(s.val()).map(k => ({id:k, ...s.val()[k]})) : []; refreshTable(); });
-        onValue(ref(db, 'transactions'), s => { transactionLogs = s.val() ? Object.values(s.val()).reverse() : []; refreshTable(); });
-    }
-});
+            --text-main: #1e293b; 
 
-// Init Theme
-const st = localStorage.getItem('srd-theme') || 'light';
-document.body.setAttribute('data-theme', st);
+            --text-muted: #64748b; 
+
+            --danger: #f43f5e; 
+
+            --warning: #f59e0b; 
+
+            --card-bg: #ffffff;
+
+            --input-bg: #ffffff;
+
+            --table-head: #f1f5f9;
+
+        }
+
+
+
+        [data-theme="dark"] {
+
+            --bg: #020617;
+
+            --side: #000000;
+
+            --brand: #818cf8;
+
+            --brand-light: rgba(99, 102, 241, 0.15);
+
+            --border: #1e293b;
+
+            --text-main: #f1f5f9;
+
+            --text-muted: #94a3b8;
+
+            --card-bg: #0f172a;
+
+            --input-bg: #1e293b;
+
+            --table-head: #1e293b;
+
+        }
+
+
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; transition: background 0.3s; }
+
+
+
+        /* Navigation */
+
+        .sidebar { 
+
+            width: 260px; 
+
+            background: var(--side); 
+
+            color: white; 
+
+            display: flex; 
+
+            flex-direction: column; 
+
+            padding: 40px 20px; 
+
+            flex-shrink: 0; 
+
+            z-index: 100; 
+
+            border-right: 2px solid rgba(255,255,255,0.1); 
+
+            transition: margin-left 0.3s ease;
+
+        }
+
+        .sidebar.hidden { margin-left: -260px; }
+
+        .logo-box { margin-bottom: 50px; padding-left: 15px; border-left: 4px solid var(--brand); }
+
+        .logo-box h1 { font-size: 14px; font-weight: 800; line-height: 1.2; text-transform: uppercase; letter-spacing: 1px; color: #fff; }
+
+        
+
+        .nav-btn { width: 100%; padding: 14px 18px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: #94a3b8; font-weight: 600; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; margin-bottom: 8px; text-transform: uppercase; }
+
+        .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; border-color: rgba(255,255,255,0.1); }
+
+        .nav-btn.active { background: var(--brand); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); border-color: rgba(255,255,255,0.2); }
+
+
+
+        .presence-box { margin-top: auto; margin-bottom: 20px; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+
+        .u-row { font-size: 10px; color: #cbd5e1; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+
+        .u-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); }
+
+
+
+        /* Main Content Area */
+
+        .wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+        .top-bar { padding: 20px 40px; background: var(--card-bg); border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 20px; }
+
+        
+
+        .hamburger { background: none; border: none; cursor: pointer; color: var(--text-main); padding: 5px; border-radius: 8px; }
+
+        .header-info h2 { font-weight: 800; font-size: 18px; letter-spacing: -0.5px; }
+
+
+
+        .search-wrap { flex: 1; max-width: 400px; }
+
+        .search-wrap input { width: 100%; padding: 12px 20px; border-radius: 14px; border: 2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-size: 13px; }
+
+        .search-wrap input:focus { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-light); }
+
+
+
+        .action-group { display: flex; gap: 10px; margin-left: auto; }
+
+
+
+        .main-content { flex: 1; padding: 30px 40px; overflow: auto; }
+
+        .table-container { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 2px solid var(--border); overflow: hidden; }
+
+
+
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+
+        thead th { position: sticky; top: 0; background: var(--table-head); padding: 18px 20px; text-align: left; font-size: 10px; font-weight: 800; color: var(--text-main); text-transform: uppercase; border-bottom: 2px solid var(--border); z-index: 10; }
+
+        tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+
+
+
+        /* Components */
+
+        .status-select { padding: 8px; border-radius: 10px; font-size: 10px; font-weight: 800; width: 140px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; text-align: center; }
+
+        .s-PENDING, .s-Undocked, .s-PLANNED { background: #f1f5f9; color: #475569; }
+
+        .s-ITEM-CREATION { background: #e0e7ff; color: #4338ca; }
+
+        .s-PR-MTR-RAISED, .s-ONGOING { background: #fef9c3; color: #854d0e; }
+
+        .s-PO-RAISED, .s-Docked, .s-COMPLETED { background: #dcfce7; color: #166534; }
+
+        .s-ALL-RECEIVED { background: var(--success); color: white; }
+
+
+
+        .remarks-editor { 
+
+            width: 100%; padding: 10px; background: var(--bg); border-radius: 8px; font-size: 12px; border: 1px solid var(--border); font-family: inherit; color: var(--text-main);
+
+        }
+
+        
+
+        /* Modals & Overlays */
+
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; }
+
+        .modal { background: var(--card-bg); padding: 40px; border-radius: 24px; width: 500px; border: 2px solid var(--brand); max-height: 90vh; overflow-y: auto; }
+
+        .modal.task-modal { width: 680px; }
+
+        
+
+        .btn-main { padding: 12px 20px; border-radius: 12px; font-weight: 800; border: 2px solid transparent; cursor: pointer; text-transform: uppercase; font-size: 10px; display: flex; align-items: center; gap: 8px; }
+
+        .btn-primary { background: var(--brand); color: white; }
+
+        .btn-outline { background: var(--card-bg); border-color: var(--border); color: var(--text-main); }
+
+        .btn-completed.active-toggle { background: var(--success); color: white; border-color: var(--success); }
+
+        
+
+        .age-badge { font-weight: 800; font-size: 11px; color: var(--brand); background: var(--brand-light); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--brand); display: inline-block; }
+
+        .theme-toggle { font-size: 18px; cursor: pointer; padding: 10px; border-radius: 12px; background: var(--bg); border: 2px solid var(--border); color: var(--text-main); }
+
+    </style>
+
+</head>
+
+<body data-theme="light">
+
+
+
+    <div id="auth-overlay" style="position: fixed; inset: 0; background: #0f172a; display: flex; align-items: center; justify-content: center; z-index: 5000;">
+
+        <div style="background: white; padding: 50px; border-radius: 30px; width: 400px; text-align: center; border: 3px solid var(--brand);">
+
+            <h2 style="font-weight: 800; margin-bottom: 25px; color:#0f172a;">SYSTEM ACCESS</h2>
+
+            <input type="email" id="login-email" placeholder="Email" style="width:100%; padding:14px; margin-bottom:12px; border-radius:12px; border:2px solid #cbd5e1;">
+
+            <input type="password" id="login-pass" placeholder="Password" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid #cbd5e1;">
+
+            <button onclick="handleLogin()" class="btn-main btn-primary" style="width:100%; justify-content: center;">Authenticate</button>
+
+        </div>
+
+    </div>
+
+
+
+    <nav class="sidebar">
+
+        <div class="logo-box"><h1>SRD<br>PORTAL 2026</h1></div>
+
+        <div style="flex: 1;">
+
+            <button id="nav-dash" onclick="switchPage('DASH')" class="nav-btn active">PRF TRACKER</button>
+
+            <button id="nav-yard" onclick="switchPage('YARD')" class="nav-btn">Boat Yard Log</button>
+
+            <button id="nav-trans" onclick="switchPage('TRANS')" class="nav-btn">Transactions</button>
+
+            <button id="nav-tasks" onclick="switchPage('TASKS')" class="nav-btn">Task Manager</button>
+
+        </div>
+
+        <div class="presence-box"><div id="online-list"></div></div>
+
+        <button onclick="handleLogout()" class="nav-btn" style="color: var(--danger); border: 1.5px solid rgba(244, 63, 94, 0.4);">Sign Out</button>
+
+    </nav>
+
+
+
+    <div class="wrapper">
+
+        <header class="top-bar">
+
+            <button class="hamburger" onclick="toggleSidebar()">
+
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+
+            </button>
+
+            <div class="header-info"><h2 id="page-title">PRF TRACKER</h2></div>
+
+            <div class="search-wrap"><input type="text" id="main-search" placeholder="Search records..." onkeyup="refreshTable()"></div>
+
+            <div class="action-group">
+
+                <button onclick="toggleTheme()" class="theme-toggle" id="theme-icon">🌙</button>
+
+                <button id="btn-toggle-comp" onclick="toggleCompleted()" class="btn-main btn-outline btn-completed">Completed PRFs</button>
+
+                <button id="btn-toggle-undocked" onclick="toggleUndocked()" class="btn-main btn-outline btn-completed" style="display:none;">Undocked Assets</button>
+
+                <button onclick="exportPDF()" class="btn-main btn-outline">Export PDF</button>
+
+                <button id="btn-create" onclick="openModal()" class="btn-main btn-primary">+ Create Entry</button>
+
+            </div>
+
+        </header>
+
+
+
+        <main class="main-content">
+
+            <div class="table-container">
+
+                <table><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
+
+            </div>
+
+        </main>
+
+    </div>
+
+
+
+    <div id="entry-modal" class="overlay" onclick="if(event.target===this) closeModal()">
+
+        <div class="modal" id="inner-modal">
+
+            <h2 id="modal-title" style="margin-bottom:25px; font-weight: 800;">NEW ENTRY</h2>
+
+            
+
+            <div id="prf-form">
+
+                <input type="text" id="m-prf" placeholder="PRF NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+
+                <input type="text" id="m-asset" placeholder="ASSET NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+
+                <select id="m-workshop" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-weight: 700;">
+
+                    <option value="">-- SELECT WORKSHOP --</option>
+
+                    <option value="DAU/LOS">DAU/LOS</option><option value="EEW">EEW</option><option value="MRW">MRW</option>
+
+                    <option value="MSH">MSH</option><option value="MWU">MWU</option><option value="NMU">NMU</option>
+
+                    <option value="OSU">OSU</option><option value="PLU">PLU</option><option value="SMU">SMU</option>
+
+                    <option value="STU">STU</option><option value="ADM">ADM</option><option value="INV">INV</option>
+
+                </select>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+
+                    <button onclick="savePRF(false)" class="btn-main btn-outline" style="justify-content:center;">Draft</button>
+
+                    <button onclick="savePRF(true)" class="btn-main btn-primary" style="justify-content:center;">Upload & Link</button>
+
+                </div>
+
+            </div>
+
+
+
+            <div id="yard-form" style="display:none;">
+
+                <input type="text" id="y-slot" placeholder="SLOT NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+
+                <input type="text" id="y-vessel" placeholder="ASSET NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+
+                <input type="text" id="y-owner" placeholder="OWNER NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+
+                    <input type="text" id="y-sr" placeholder="SR NUMBER" class="remarks-editor">
+
+                    <input type="text" id="y-wo" placeholder="WO NUMBER" class="remarks-editor">
+
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+
+                    <div><label style="font-size:10px; font-weight:800; color:var(--text-muted);">DOCK DATE</label><input type="date" id="y-docked" class="remarks-editor"></div>
+
+                    <div><label style="font-size:10px; font-weight:800; color:var(--text-muted);">EST. UNDOCK</label><input type="date" id="y-est-undock" class="remarks-editor"></div>
+
+                </div>
+
+                <button onclick="saveYardEntry()" class="btn-main btn-primary" style="width:100%; justify-content:center;">Register Vessel</button>
+
+            </div>
+
+
+
+            <div id="task-form" style="display:none;">
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+
+                    <div><label style="font-size:10px; font-weight:800; color:var(--text-muted);">SR NUMBER</label><input type="text" id="t-sr" placeholder="SR #" class="remarks-editor"></div>
+
+                    <div><label style="font-size:10px; font-weight:800; color:var(--text-muted);">SR DATE</label><input type="date" id="t-sr-date" class="remarks-editor"></div>
+
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+
+                    <div><label style="font-size:10px; font-weight:800; color:var(--text-muted);">WO NUMBER</label><input type="text" id="t-wo" placeholder="WO #" class="remarks-editor"></div>
+
+                    <div><label style="font-size:10px; font-weight:800; color:var(--text-muted);">WO DATE</label><input type="date" id="t-wo-date" class="remarks-editor"></div>
+
+                </div>
+
+                <input type="text" id="t-asset" placeholder="ASSET / SERVICE NAME" class="remarks-editor" style="margin-bottom:20px; font-weight:700;">
+
+                <div style="margin-bottom:20px; padding:15px; border-radius:12px; background:rgba(0,0,0,0.02); border:1px solid var(--border);">
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+
+                        <label style="font-size:11px; font-weight:800; text-transform:uppercase;">Task Entries</label>
+
+                        <button onclick="addTaskRow()" class="btn-main btn-outline" style="padding: 6px 12px;">+ Add Row</button>
+
+                    </div>
+
+                    <div id="t-task-list" style="max-height: 220px; overflow-y: auto;"></div>
+
+                </div>
+
+                <button onclick="saveTaskEntry()" class="btn-main btn-primary" style="width:100%; justify-content:center; padding:15px;">Save Request & Tasks</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <script type="module" src="script.js"></script>
+
+</body>
+
+</html>
