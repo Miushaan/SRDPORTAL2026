@@ -106,6 +106,7 @@
         
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; }
         .modal { background: var(--card-bg); padding: 40px; border-radius: 24px; width: 500px; border: 2px solid var(--brand); max-height: 90vh; overflow-y: auto; }
+        /* Expanded width specifically for the Task form modal for better nested row layout */
         .modal.task-modal { width: 650px; }
         
         .btn-main { padding: 12px 20px; border-radius: 12px; font-weight: 800; border: 2px solid transparent; cursor: pointer; text-transform: uppercase; font-size: 10px; transition: 0.2s; display: flex; align-items: center; gap: 8px; }
@@ -128,7 +129,7 @@
             <h2 style="font-weight: 800; margin-bottom: 25px; color:#0f172a;">SYSTEM ACCESS</h2>
             <input type="email" id="login-email" placeholder="Email" style="width:100%; padding:14px; margin-bottom:12px; border-radius:12px; border:2px solid #cbd5e1;">
             <input type="password" id="login-pass" placeholder="Password" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid #cbd5e1;">
-            <button id="login-btn" class="btn-main btn-primary" style="width:100%; justify-content: center;">Authenticate</button>
+            <button onclick="handleLogin()" class="btn-main btn-primary" style="width:100%; justify-content: center;">Authenticate</button>
         </div>
     </div>
 
@@ -188,10 +189,6 @@
             </div>
 
             <div id="yard-form" style="display:none;">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                    <input type="text" id="y-sr" placeholder="SR NUMBER (Optional)" class="remarks-editor" style="padding:14px;">
-                    <input type="text" id="y-wo" placeholder="WO NUMBER (Optional)" class="remarks-editor" style="padding:14px;">
-                </div>
                 <input type="text" id="y-slot" placeholder="SLOT NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
                 <input type="text" id="y-vessel" placeholder="Asset Name" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
                 <input type="text" id="y-owner" placeholder="OWNER NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
@@ -203,6 +200,7 @@
             </div>
 
             <div id="task-form" style="display:none;">
+                
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
                     <div>
                         <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">SR NUMBER</label>
@@ -220,7 +218,7 @@
                         <input type="text" id="t-wo" placeholder="WO #" class="remarks-editor">
                     </div>
                     <div>
-                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">WO DATE (Optional)</label>
+                        <label style="font-size: 10px; font-weight: 800; color: var(--text-muted);">WO DATE</label>
                         <input type="date" id="t-wo-date" class="remarks-editor">
                     </div>
                 </div>
@@ -233,7 +231,8 @@
                         <button onclick="addTaskRow()" class="btn-main btn-outline" style="padding: 6px 12px;">+ Add Row</button>
                     </div>
                     
-                    <div id="t-task-list" style="max-height: 220px; overflow-y: auto; overflow-x: hidden; padding-right: 5px;"></div>
+                    <div id="t-task-list" style="max-height: 220px; overflow-y: auto; overflow-x: hidden; padding-right: 5px;">
+                        </div>
                 </div>
 
                 <button onclick="saveTaskEntry()" class="btn-main btn-primary" style="width:100%; justify-content:center; padding:15px; font-size:12px;">Save Request & Tasks</button>
