@@ -40,18 +40,8 @@
         * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; transition: background 0.3s; }
 
-        /* Navigation */
         .sidebar { 
-            width: 260px; 
-            background: var(--side); 
-            color: white; 
-            display: flex; 
-            flex-direction: column; 
-            padding: 40px 20px; 
-            flex-shrink: 0; 
-            z-index: 100; 
-            border-right: 2px solid rgba(255,255,255,0.1); 
-            transition: margin-left 0.3s ease;
+            width: 260px; background: var(--side); color: white; display: flex; flex-direction: column; padding: 40px 20px; flex-shrink: 0; z-index: 100; border-right: 2px solid rgba(255,255,255,0.1); transition: margin-left 0.3s ease;
         }
         .sidebar.hidden { margin-left: -260px; }
         .logo-box { margin-bottom: 50px; padding-left: 15px; border-left: 4px solid var(--brand); }
@@ -65,7 +55,6 @@
         .u-row { font-size: 10px; color: #cbd5e1; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
         .u-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); }
 
-        /* Main Content Area */
         .wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
         .top-bar { padding: 20px 40px; background: var(--card-bg); border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 20px; }
         
@@ -74,20 +63,18 @@
 
         .search-wrap { flex: 1; max-width: 400px; }
         .search-wrap input { width: 100%; padding: 12px 20px; border-radius: 14px; border: 2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-size: 13px; }
-        .search-wrap input:focus { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-light); }
 
         .action-group { display: flex; gap: 10px; margin-left: auto; }
 
         .main-content { flex: 1; padding: 30px 40px; overflow: auto; }
-        .table-container { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 2px solid var(--border); overflow: hidden; }
+        .table-container { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 2px solid var(--border); overflow-x: auto; }
 
         table { width: 100%; border-collapse: collapse; min-width: 900px; }
         thead th { position: sticky; top: 0; background: var(--table-head); padding: 18px 20px; text-align: left; font-size: 10px; font-weight: 800; color: var(--text-main); text-transform: uppercase; border-bottom: 2px solid var(--border); z-index: 10; }
         
-        /* UPDATED: Added white-space: pre-wrap to support multiple lines and blank rows */
-        tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; white-space: pre-wrap; }
+        /* Fixed UI Bug: white-space: pre-wrap and vertical-align: top for better multi-line layout */
+        tbody td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; white-space: pre-wrap; line-height: 1.5; }
 
-        /* Components */
         .status-select { padding: 8px; border-radius: 10px; font-size: 10px; font-weight: 800; width: 140px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; text-align: center; }
         .s-PENDING, .s-Undocked, .s-PLANNED { background: #f1f5f9; color: #475569; }
         .s-ITEM-CREATION { background: #e0e7ff; color: #4338ca; }
@@ -99,17 +86,12 @@
             width: 100%; padding: 10px; background: var(--bg); border-radius: 8px; font-size: 12px; border: 1px solid var(--border); font-family: inherit; color: var(--text-main);
         }
         
-        /* Modals & Overlays */
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; }
         .modal { background: var(--card-bg); padding: 40px; border-radius: 24px; width: 500px; border: 2px solid var(--brand); max-height: 90vh; overflow-y: auto; }
-        .modal.task-modal { width: 680px; }
         
         .btn-main { padding: 12px 20px; border-radius: 12px; font-weight: 800; border: 2px solid transparent; cursor: pointer; text-transform: uppercase; font-size: 10px; display: flex; align-items: center; gap: 8px; }
         .btn-primary { background: var(--brand); color: white; }
         .btn-outline { background: var(--card-bg); border-color: var(--border); color: var(--text-main); }
-        .btn-completed.active-toggle { background: var(--success); color: white; border-color: var(--success); }
-        
-        .age-badge { font-weight: 800; font-size: 11px; color: var(--brand); background: var(--brand-light); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--brand); display: inline-block; }
         .theme-toggle { font-size: 18px; cursor: pointer; padding: 10px; border-radius: 12px; background: var(--bg); border: 2px solid var(--border); color: var(--text-main); }
     </style>
 </head>
@@ -165,7 +147,8 @@
             
             <div id="prf-form">
                 <input type="text" id="m-prf" placeholder="PRF NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
-                <textarea id="m-asset" placeholder="ASSET NAME / REMARKS" class="remarks-editor" style="margin-bottom:12px; padding:14px; min-height: 100px; resize: vertical; display: block;"></textarea>
+                <textarea id="m-asset" placeholder="ASSET NAME / REMARKS" class="remarks-editor" style="margin-bottom:12px; padding:14px; min-height: 120px; resize: vertical; display: block; width:100%; border:2px solid var(--border); border-radius:12px;"></textarea>
+                
                 <select id="m-workshop" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-weight: 700;">
                     <option value="">-- SELECT WORKSHOP --</option>
                     <option value="DAU/LOS">DAU/LOS</option><option value="EEW">EEW</option><option value="MRW">MRW</option>
