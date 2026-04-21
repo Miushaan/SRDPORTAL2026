@@ -83,7 +83,9 @@
 
         table { width: 100%; border-collapse: collapse; min-width: 900px; }
         thead th { position: sticky; top: 0; background: var(--table-head); padding: 18px 20px; text-align: left; font-size: 10px; font-weight: 800; color: var(--text-main); text-transform: uppercase; border-bottom: 2px solid var(--border); z-index: 10; }
-        tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+        
+        /* UPDATED: Added white-space: pre-wrap to support multiple lines and blank rows */
+        tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; white-space: pre-wrap; }
 
         /* Components */
         .status-select { padding: 8px; border-radius: 10px; font-size: 10px; font-weight: 800; width: 140px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; text-align: center; }
@@ -163,7 +165,7 @@
             
             <div id="prf-form">
                 <input type="text" id="m-prf" placeholder="PRF NUMBER" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
-                <input type="text" id="m-asset" placeholder="ASSET NAME" class="remarks-editor" style="margin-bottom:12px; padding:14px;">
+                <textarea id="m-asset" placeholder="ASSET NAME / REMARKS" class="remarks-editor" style="margin-bottom:12px; padding:14px; min-height: 100px; resize: vertical; display: block;"></textarea>
                 <select id="m-workshop" style="width:100%; padding:14px; margin-bottom:20px; border-radius:12px; border:2px solid var(--border); background: var(--input-bg); color: var(--text-main); font-weight: 700;">
                     <option value="">-- SELECT WORKSHOP --</option>
                     <option value="DAU/LOS">DAU/LOS</option><option value="EEW">EEW</option><option value="MRW">MRW</option>
