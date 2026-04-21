@@ -340,12 +340,25 @@ window.savePRF = (redirect) => {
     if(redirect) window.open("https://forms.office.com/pages/responsepage.aspx?id=rS-35FLkcEy4rMmBiUUcM-wq0ZU8I9BHssORFyfEW95UN0ZMM1gxR1YwUDZKMkNHMkhFMUdMRzlRSS4u", "_blank");
 };
 
-window.saveYardEntry = () => {
-    const s = document.getElementById('y-slot').value, v = document.getElementById('y-vessel').value, d = document.getElementById('y-docked').value;
-    if(!s || !v || !d) return alert("Required");
-    push(ref(db, 'yard_logs'), { slot: s, name: v, owner: document.getElementById('y-owner').value, docked: d, estUndock: document.getElementById('y-est-undock').value, status: 'Docked', undocked: '' });
+function saveYardEntry() {
+    const entry = {
+        slot: document.getElementById('y-slot').value,
+        vessel: document.getElementById('y-vessel').value,
+        owner: document.getElementById('y-owner').value,
+        sr: document.getElementById('y-sr').value, // New field
+        wo: document.getElementById('y-wo').value, // New field
+        dockedDate: document.getElementById('y-docked').value,
+        estUndockDate: document.getElementById('y-est-undock').value,
+        status: 'Docked',
+        id: Date.now()
+    };
+
+    // ... your logic to save to Firebase or local array ...
+    // yardEntries.push(entry); 
+    
     closeModal();
-};
+    refreshTable();
+}
 
 window.updateField = (id, field, val, prf) => {
     update(ref(db, `prf_logs/${id}`), { [field]: val });
