@@ -36,7 +36,25 @@ document.body.setAttribute('data-theme', savedTheme);
 document.getElementById('theme-icon').innerText = savedTheme === 'light' ? '🌙' : '☀️';
 
 // --- AUTH & DATA ---
-window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-pass').value).catch(() => alert("Access Denied"));
+window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('login-btn').addEventListener('click', () => {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-pass').value;
+
+    if (!email || !pass) {
+        alert("Please enter both email and password.");
+        return;
+    }
+
+    signInWithEmailAndPassword(auth, email, pass)
+        .then((userCredential) => {
+            // Login successful - the onAuthStateChanged listener will handle the UI
+            console.log("Authenticated successfully");
+        })
+        .catch((error) => {
+            console.error("Login Error:", error.code, error.message);
+            alert("Access Denied: Invalid credentials.");
+        });
+});
 window.handleLogout = () => signOut(auth);
 
 onAuthStateChanged(auth, user => {
